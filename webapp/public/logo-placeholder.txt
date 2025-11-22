@@ -1,0 +1,8 @@
+# Logo de FirstFrame
+
+Por favor, coloca tu logo aquí con el nombre: `logo.png` o `logo.svg`
+
+El logo debe tener el fondo estrellado con efectos neon que compartiste.
+Formato recomendado: PNG o SVG
+Tamaño recomendado: 512x512px o mayor
+

@@ -1,0 +1,87 @@
+.report {
+  padding: 1.5rem;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.report h2 {
+  margin-bottom: 1.5rem;
+  font-size: 1.8rem;
+}
+
+.report-form {
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 1.5rem;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--background);
+  border: 2px solid var(--purple);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  border-color: var(--green-lila);
+}
+
+.btn-report {
+  width: 100%;
+  padding: 1rem;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-report:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+}
+
+.btn-report:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.report-success {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  background: var(--surface);
+  border-radius: 16px;
+  border: 2px solid var(--green-lila);
+}
+
+.report-success h2 {
+  color: var(--green-lila);
+  margin-bottom: 1rem;
+}
+
+.report-success p {
+  color: var(--text-secondary);
+}
+

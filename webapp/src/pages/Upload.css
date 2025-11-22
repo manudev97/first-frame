@@ -1,0 +1,122 @@
+.upload {
+  padding: 1.5rem;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.upload h2 {
+  margin-bottom: 1.5rem;
+  font-size: 1.8rem;
+}
+
+.upload-form {
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 1.5rem;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--background);
+  border: 2px solid var(--purple);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.form-group input:focus {
+  border-color: var(--green-lila);
+}
+
+.btn-primary,
+.btn-secondary {
+  width: 100%;
+  padding: 1rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: bold;
+  margin-top: 1rem;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--purple), var(--green-lila));
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: var(--surface);
+  border: 2px solid var(--purple);
+  color: var(--purple-light);
+}
+
+.btn-secondary:hover {
+  background: var(--purple);
+  color: white;
+}
+
+.imdb-preview {
+  display: flex;
+  gap: 1rem;
+  background: var(--background);
+  padding: 1rem;
+  border-radius: 8px;
+  margin: 1rem 0;
+}
+
+.imdb-preview img {
+  width: 100px;
+  height: auto;
+  border-radius: 8px;
+}
+
+.imdb-preview h3 {
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+}
+
+.imdb-preview p {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.upload-success {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  background: var(--surface);
+  border-radius: 16px;
+  border: 2px solid var(--green-lila);
+}
+
+.upload-success h2 {
+  color: var(--green-lila);
+  margin-bottom: 1rem;
+}
+
+.upload-success p {
+  color: var(--text-secondary);
+  margin: 0.5rem 0;
+}
+

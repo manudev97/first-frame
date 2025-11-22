@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.env
+data/
+*.log
+*.log
+.DS_Store
+webapp/node_modules/
+webapp/dist/
+webapp/.vite/
+docs/
+docs_context/
+

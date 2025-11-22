@@ -1,0 +1,158 @@
+.marketplace {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.marketplace h2 {
+  color: #A78BFA;
+  margin-bottom: 20px;
+}
+
+.marketplace-search {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 30px;
+}
+
+.search-input {
+  flex: 1;
+  padding: 12px;
+  border: 2px solid rgba(139, 92, 246, 0.3);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  color: white;
+  font-size: 16px;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #8B5CF6;
+}
+
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: #A78BFA;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #A78BFA;
+}
+
+.empty-state p {
+  margin-bottom: 15px;
+  font-size: 18px;
+}
+
+.marketplace-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.marketplace-item {
+  background: rgba(139, 92, 246, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+}
+
+.marketplace-item:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 30px rgba(139, 92, 246, 0.3);
+}
+
+.item-poster {
+  width: 100%;
+  height: 400px;
+  object-fit: cover;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.item-poster-placeholder {
+  width: 100%;
+  height: 400px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(139, 92, 246, 0.2);
+  font-size: 80px;
+}
+
+.item-info {
+  padding: 15px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.item-info h3 {
+  color: white;
+  margin: 0 0 8px 0;
+  font-size: 18px;
+}
+
+.item-year {
+  color: #A78BFA;
+  margin: 0 0 10px 0;
+  font-size: 14px;
+}
+
+.item-description {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  margin: 0 0 15px 0;
+  flex: 1;
+}
+
+.item-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+}
+
+.item-id {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  font-family: monospace;
+}
+
+.btn-play {
+  padding: 8px 16px;
+  background: #8B5CF6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.btn-play:hover {
+  background: #7C3AED;
+}
+
+@media (max-width: 768px) {
+  .marketplace-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 15px;
+  }
+
+  .item-poster,
+  .item-poster-placeholder {
+    height: 250px;
+  }
+
+  .marketplace-search {
+    flex-direction: column;
+  }
+}
+
