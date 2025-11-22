@@ -84,15 +84,39 @@ router.post('/register-ip', async (req, res) => {
       console.warn('No se pudo guardar IP en registry (no crítico):', saveError);
     }
 
-    res.json({ success: true, txHash: tx.txHash, ipId: tx.ipId });
-  } catch (error: any) {
-    console.error('Error registrando IP:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message || 'Error desconocido al registrar IP',
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
-  }
+            // Verificar que la respuesta tenga los campos necesarios
+            if (!tx.ipId || !tx.txHash) {
+              console.error('❌ Respuesta del SDK sin ipId o txHash:', tx);
+              return res.status(500).json({
+                success: false,
+                error: 'El SDK no devolvió ipId o txHash',
+                details: JSON.stringify(tx),
+              });
+            }
+
+            console.log('✅ IP registrado exitosamente:', {
+              ipId: tx.ipId,
+              txHash: tx.txHash,
+            });
+
+            res.json({ 
+              success: true, 
+              txHash: tx.txHash, 
+              ipId: tx.ipId,
+            });
+          } catch (error: any) {
+            console.error('❌ Error registrando IP:', error);
+            console.error('Detalles del error:', {
+              message: error.message,
+              stack: error.stack,
+              response: error.response?.data,
+            });
+            res.status(500).json({ 
+              success: false, 
+              error: error.message || 'Error desconocido al registrar IP',
+              details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            });
+          }
 });
 
 // Registrar derivado (póster del puzzle)
@@ -139,54 +163,116 @@ router.post('/register-license', async (req, res) => {
     
     const client = await createStoryClient();
     
-    // IMPORTANTE: Si commercialRevShare > 0, se requiere royaltyPolicy con currency token
-    // Si no hay currency token configurado, establecer commercialRevShare a 0 Y commercialUse a false
-    // para evitar el error "Royalty policy requires currency token"
-    const commercialRevShare = licenseTerms.commercialRevShare ?? 0;
+    // CRÍTICO: El SDK valida ANTES de procesar, por lo que debemos corregir los valores
+    // ANTES de pasarlos al SDK. Si commercialUse=true o commercialRevShare>0 sin currency,
+    // el SDK lanzará "Royalty policy requires currency token"
+    
+    // Obtener valores originales
+    const originalCommercialRevShare = Number(licenseTerms.commercialRevShare) || 0;
+    const originalCommercialUse = Boolean(licenseTerms.commercialUse);
     const currency = licenseTerms.currency;
-    const hasValidCurrency = currency && currency !== '0x0000000000000000000000000000000000000000';
     
-    // Si hay regalías comerciales (>0) pero no currency token válido, establecer a 0
-    const finalCommercialRevShare = (commercialRevShare > 0 && !hasValidCurrency) ? 0 : commercialRevShare;
+    // Validar currency token
+    const hasValidCurrency = currency && 
+                            currency !== '0x0000000000000000000000000000000000000000' &&
+                            currency !== '' &&
+                            currency !== null &&
+                            currency !== undefined;
     
-    // Si no hay regalías comerciales configuradas, no usar comercial use
-    // Esto evita el error "Royalty policy requires currency token"
-    const finalCommercialUse = (finalCommercialRevShare === 0) ? false : (licenseTerms.commercialUse ?? false);
+    // CORRECCIÓN: Si no hay currency token válido, FORZAR commercialUse=false y commercialRevShare=0
+    // Esto debe hacerse ANTES de llamar al SDK para evitar el error de validación
+    let finalCommercialRevShare = originalCommercialRevShare;
+    let finalCommercialUse = originalCommercialUse;
     
-    if (commercialRevShare > 0 && !hasValidCurrency) {
-      console.warn('⚠️  commercialRevShare establecido a 0 porque no hay currency token válido configurado');
-      console.warn('⚠️  commercialUse establecido a false para evitar error de royalty policy');
-      console.warn('💡 Para habilitar regalías comerciales, configura un wrapped IP token address en currency');
+    if (!hasValidCurrency) {
+      // Si no hay currency token, NO se pueden tener regalías comerciales
+      if (originalCommercialRevShare > 0 || originalCommercialUse) {
+        console.warn('⚠️  CORRECCIÓN: No hay currency token válido. Forzando:');
+        console.warn(`   - commercialRevShare: ${originalCommercialRevShare} → 0`);
+        console.warn(`   - commercialUse: ${originalCommercialUse} → false`);
+        finalCommercialRevShare = 0;
+        finalCommercialUse = false;
+      }
+    } else {
+      // Si hay currency token válido, usar los valores originales
+      console.log('✅ Currency token válido detectado:', currency);
     }
+    
+    // Log de los valores finales que se enviarán al SDK
+    console.log('📋 Valores finales para registerPILTerms:');
+    console.log(`   - commercialRevShare: ${finalCommercialRevShare}`);
+    console.log(`   - commercialUse: ${finalCommercialUse}`);
+    console.log(`   - currency: ${hasValidCurrency ? currency : '0x0000...0000'}`);
+    
+    // CRÍTICO: Si el SDK sigue lanzando el error incluso con commercialRevShare=0 y commercialUse=false,
+    // puede ser que el SDK valide el campo currency incluso cuando no se necesita.
+    // Solución: Si no hay currency token y no hay regalías comerciales, usar un currency token "zero" válido
+    // O mejor aún, verificar si podemos omitir completamente el registro de licencia si no hay regalías
+    
+    // Si no hay currency token y no hay regalías comerciales, intentar registrar sin currency
+    // Pero el SDK puede requerir currency de todos modos, así que usamos el address zero
+    const finalCurrency = hasValidCurrency ? currency : '0x0000000000000000000000000000000000000000';
     
     // Asegurar que todos los campos numéricos tengan valores válidos (no undefined)
     // El SDK convierte algunos campos a BigInt, por lo que no pueden ser undefined
-    const tx = await client.license.registerPILTerms({
-      transferable: licenseTerms.transferable ?? false,
-      commercialRevShare: finalCommercialRevShare, // Usar valor final (0 si no hay currency)
-      commercialUse: finalCommercialUse, // Usar valor final (false si no hay regalías)
-      commercialAttribution: licenseTerms.commercialAttribution ?? false,
-      derivativesAllowed: licenseTerms.derivativesAllowed ?? false,
-      derivativesAttribution: licenseTerms.derivativesAttribution ?? false,
-      derivativesApproval: licenseTerms.derivativesApproval ?? false,
-      derivativesReciprocal: licenseTerms.derivativesReciprocal ?? false,
-      // Campos requeridos por el SDK
-      defaultMintingFee: licenseTerms.mintingFee || '0', // String para BigInt
-      expiration: 0, // 0 = sin expiración
-      commercialRevCeiling: 0, // 0 = sin límite
-      derivativeRevCeiling: 0, // 0 = sin límite
-      commercializerChecker: '0x0000000000000000000000000000000000000000',
-      commercializerCheckerData: '0x',
-      currency: hasValidCurrency ? currency : '0x0000000000000000000000000000000000000000',
-      uri: '', // URI opcional para términos de licencia
-    });
-
-    res.json({ success: true, txHash: tx.txHash, licenseTermsId: tx.licenseTermsId });
+    try {
+      const tx = await client.license.registerPILTerms({
+        transferable: licenseTerms.transferable ?? false,
+        commercialRevShare: finalCommercialRevShare, // SIEMPRE 0 si no hay currency
+        commercialUse: finalCommercialUse, // SIEMPRE false si no hay currency
+        commercialAttribution: licenseTerms.commercialAttribution ?? false,
+        derivativesAllowed: licenseTerms.derivativesAllowed ?? false,
+        derivativesAttribution: licenseTerms.derivativesAttribution ?? false,
+        derivativesApproval: licenseTerms.derivativesApproval ?? false,
+        derivativesReciprocal: licenseTerms.derivativesReciprocal ?? false,
+        // Campos requeridos por el SDK
+        defaultMintingFee: licenseTerms.mintingFee || '0', // String para BigInt
+        expiration: 0, // 0 = sin expiración
+        commercialRevCeiling: 0, // 0 = sin límite
+        derivativeRevCeiling: 0, // 0 = sin límite
+        commercializerChecker: '0x0000000000000000000000000000000000000000',
+        commercializerCheckerData: '0x',
+        currency: finalCurrency,
+        uri: '', // URI opcional para términos de licencia
+      });
+      
+      res.json({ success: true, txHash: tx.txHash, licenseTermsId: tx.licenseTermsId });
+    } catch (sdkError: any) {
+      // Si el SDK sigue lanzando el error incluso con valores correctos,
+      // puede ser un bug del SDK o una validación adicional que no conocemos
+      console.error('❌ Error del SDK al registrar licencia:', sdkError.message);
+      console.error('📋 Valores que se intentaron enviar:', {
+        commercialRevShare: finalCommercialRevShare,
+        commercialUse: finalCommercialUse,
+        currency: finalCurrency,
+        hasValidCurrency,
+      });
+      
+      // Si el error es específicamente sobre currency token y no hay regalías comerciales,
+      // podemos intentar omitir el registro de licencia (el IP ya está registrado)
+      if (sdkError.message.includes('currency token') && finalCommercialRevShare === 0 && !finalCommercialUse) {
+        console.warn('⚠️  El SDK requiere currency token incluso sin regalías comerciales.');
+        console.warn('💡 El IP está registrado correctamente, pero la licencia no se pudo registrar.');
+        console.warn('💡 Para registrar la licencia, necesitas un wrapped IP token address.');
+        console.warn('💡 Por ahora, el IP funcionará sin licencia registrada.');
+        // Retornar éxito parcial - el IP está registrado, solo la licencia falló
+        return res.status(200).json({ 
+          success: false, 
+          warning: true,
+          message: 'IP registrado correctamente, pero la licencia no se pudo registrar porque el SDK requiere currency token incluso sin regalías comerciales.',
+          ipId: ipId,
+          skipLicense: true,
+        });
+      }
+      
+      throw sdkError;
+    }
   } catch (error: any) {
     console.error('Error registrando licencia:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
 
 // Pagar regalías
 router.post('/pay-royalty', async (req, res) => {

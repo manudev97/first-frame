@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import Navigation from '../components/Navigation';
 import './Puzzle.css';
 
-// Usar proxy de Vite en desarrollo, o URL configurada en producción
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:3001/api');
 
 interface PuzzlePiece {
@@ -18,12 +18,12 @@ function Puzzle() {
   const [selectedPiece, setSelectedPiece] = useState<number | null>(null);
   const [solved, setSolved] = useState(false);
   const [time, setTime] = useState(0);
+  const [showPreview, setShowPreview] = useState(true); // Mostrar vista previa por defecto
+  const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    // Obtener puzzle desde el backend
     loadPuzzle();
     
-    // Timer
     const interval = setInterval(() => {
       if (!solved) {
         setTime((t) => t + 1);
@@ -35,20 +35,21 @@ function Puzzle() {
 
   const loadPuzzle = async () => {
     try {
-      // Obtener el poster desde la URL o parámetros
       const urlParams = new URLSearchParams(window.location.search);
       const posterUrl = urlParams.get('poster');
       const ipId = urlParams.get('ipId');
       
       if (!posterUrl) {
-        // Si no hay poster, obtener uno de ejemplo o mostrar error
         alert('❌ No se proporcionó URL del póster. Debes acceder al puzzle desde un IP registrado.');
         return;
       }
+
+      // Guardar URL original para vista previa
+      setOriginalImageUrl(posterUrl);
       
       const response = await axios.post(`${API_URL}/puzzle/create`, {
         imageUrl: posterUrl,
-        difficulty: 3,
+        difficulty: 2, // 2x2 = 4 piezas (más fácil)
         ipId: ipId,
       });
       
@@ -68,6 +69,9 @@ function Puzzle() {
   const handlePieceClick = (pieceId: number) => {
     if (selectedPiece === null) {
       setSelectedPiece(pieceId);
+    } else if (selectedPiece === pieceId) {
+      // Deseleccionar si se hace clic en la misma pieza
+      setSelectedPiece(null);
     } else {
       // Intercambiar piezas
       const newPieces = [...pieces];
@@ -108,22 +112,32 @@ function Puzzle() {
       
       if (response.data.success && response.data.accessGranted) {
         setSolved(true);
-        const message = `🎉 ¡Puzzle completado en ${formatTime(time)}!\n\n` +
-          `✅ Acceso otorgado al canal privado\n` +
-          (response.data.derivativeIpId ? `📸 Póster registrado como IP derivado: ${response.data.derivativeIpId}\n` : '') +
-          (response.data.channelLink ? `🔗 Canal: ${response.data.channelLink}` : '');
-        alert(message);
+        setShowPreview(false);
+        
+        // Mostrar mensaje de éxito más atractivo con link al canal
+        let successMessage = `🎉 ¡Puzzle completado en ${formatTime(time)}!\n\n`;
+        successMessage += `✅ Acceso otorgado al canal privado\n`;
+        if (response.data.derivativeIpId) {
+          successMessage += `📸 Póster registrado como IP derivado\n`;
+        }
+        if (response.data.channelLink) {
+          successMessage += `\n🔗 Accede al canal: ${response.data.channelLink}`;
+          // También mostrar botón para abrir el canal
+          const openChannel = window.confirm(successMessage + '\n\n¿Deseas abrir el canal ahora?');
+          if (openChannel) {
+            window.open(response.data.channelLink, '_blank');
+          }
+        } else {
+          alert(successMessage);
+        }
       } else {
-        alert('❌ Solución incorrecta. Intenta de nuevo.');
+        // Feedback visual sin alert intrusivo
+        console.log('Solución incorrecta, continuar intentando...');
       }
     } catch (error: any) {
       console.error('Error validando solución:', error);
-      const errorMsg = error.response?.data?.error || error.message || 'Error al validar solución';
-      alert('Error: ' + errorMsg);
     }
   };
-
-  // Esta función ya no es necesaria - el backend maneja el registro del derivado
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -132,45 +146,105 @@ function Puzzle() {
   };
 
   if (!puzzle) {
-    return <div className="puzzle-loading">Cargando puzzle...</div>;
+    return (
+      <div className="puzzle">
+        <Navigation title="Rompecabezas" />
+        <div className="puzzle-loading">
+          <div className="loading-spinner"></div>
+          <p>Cargando puzzle...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="puzzle">
-      <div className="puzzle-header">
-        <h2>🧩 Rompecabezas</h2>
-        <div className="timer">⏱️ {formatTime(time)}</div>
-      </div>
-
-      {solved ? (
-        <div className="puzzle-solved">
-          <h3>🎉 ¡Felicidades!</h3>
-          <p>Has completado el puzzle en {formatTime(time)}</p>
-          <p>Tu acceso al canal privado ha sido otorgado.</p>
-          <p>El póster ha sido registrado como IP en Story Protocol.</p>
-        </div>
-      ) : (
-        <div className="puzzle-board">
-          <div className="puzzle-grid">
-            {pieces.map((piece) => (
-              <div
-                key={piece.id}
-                className={`puzzle-piece ${selectedPiece === piece.id ? 'selected' : ''}`}
-                onClick={() => handlePieceClick(piece.id)}
-                style={{
-                  backgroundImage: `url(${piece.imageData})`,
-                  backgroundSize: '300% 300%',
-                  backgroundPosition: `${-(piece.id % 3) * 33.33}% ${-Math.floor(piece.id / 3) * 33.33}%`,
-                }}
+      <Navigation title="Rompecabezas" />
+      
+      <div className="puzzle-container">
+        {/* Vista previa de la imagen original */}
+        {showPreview && originalImageUrl && !solved && (
+          <div className="puzzle-preview">
+            <button 
+              className="preview-toggle"
+              onClick={() => setShowPreview(!showPreview)}
+              title={showPreview ? "Ocultar vista previa" : "Mostrar vista previa"}
+            >
+              {showPreview ? "👁️ Ocultar" : "👁️ Ver"} Vista Previa
+            </button>
+            <div className="preview-image-container">
+              <img 
+                src={originalImageUrl} 
+                alt="Vista previa del póster" 
+                className="preview-image"
               />
-            ))}
+              <div className="preview-overlay">
+                <p>📸 Vista Previa</p>
+                <p className="preview-hint">Usa esta imagen como referencia</p>
+              </div>
+            </div>
           </div>
-          <p className="puzzle-hint">Haz clic en dos piezas para intercambiarlas</p>
+        )}
+
+        {!showPreview && !solved && (
+          <button 
+            className="preview-toggle-show"
+            onClick={() => setShowPreview(true)}
+          >
+            👁️ Mostrar Vista Previa
+          </button>
+        )}
+
+        {/* Timer y info */}
+        <div className="puzzle-header">
+          <div className="timer">⏱️ {formatTime(time)}</div>
+          <div className="puzzle-info">
+            {selectedPiece !== null && (
+              <span className="selection-hint">Pieza {selectedPiece + 1} seleccionada - Haz clic en otra para intercambiar</span>
+            )}
+            {selectedPiece === null && (
+              <span className="selection-hint">Haz clic en una pieza para seleccionarla</span>
+            )}
+          </div>
         </div>
-      )}
+
+        {solved ? (
+          <div className="puzzle-solved">
+            <div className="solved-animation">🎉</div>
+            <h3>¡Felicidades!</h3>
+            <p className="solved-time">Completado en {formatTime(time)}</p>
+            <p className="solved-message">Tu acceso al canal privado ha sido otorgado</p>
+            <p className="solved-message">El póster ha sido registrado como IP en Story Protocol</p>
+          </div>
+        ) : (
+          <div className="puzzle-board">
+            <div className="puzzle-grid">
+              {pieces.map((piece) => (
+                <div
+                  key={piece.id}
+                  className={`puzzle-piece ${selectedPiece === piece.id ? 'selected' : ''} ${selectedPiece !== null && selectedPiece !== piece.id ? 'hoverable' : ''}`}
+                  onClick={() => handlePieceClick(piece.id)}
+                  style={{
+                    backgroundImage: `url(${piece.imageData})`,
+                    backgroundSize: '200% 200%', // 2x2 = 200%
+                    backgroundPosition: `${-(piece.id % 2) * 50}% ${-Math.floor(piece.id / 2) * 50}%`,
+                  }}
+                >
+                  {selectedPiece === piece.id && (
+                    <div className="piece-selected-indicator">✓</div>
+                  )}
+                  <div className="piece-number">{piece.id + 1}</div>
+                </div>
+              ))}
+            </div>
+            <p className="puzzle-hint">
+              💡 <strong>Tip:</strong> Haz clic en dos piezas para intercambiarlas. Usa la vista previa como referencia.
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
 export default Puzzle;
-

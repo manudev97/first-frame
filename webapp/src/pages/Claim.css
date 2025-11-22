@@ -1,54 +1,62 @@
 .claim {
-  padding: 1.5rem;
+  padding: 1rem;
   max-width: 600px;
   margin: 0 auto;
-}
-
-.claim h2 {
-  margin-bottom: 1.5rem;
-  font-size: 1.8rem;
+  animation: slideIn 0.5s ease-out;
 }
 
 .claim-info {
   background: var(--surface);
-  border-radius: 16px;
+  border-radius: 20px;
   padding: 2rem;
-  margin-bottom: 1.5rem;
-  text-align: center;
+  margin-bottom: 2rem;
+  border: 2px solid rgba(139, 92, 246, 0.2);
+  box-shadow: var(--shadow-card);
 }
 
 .claim-amount {
+  text-align: center;
   margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(167, 139, 250, 0.2);
 }
 
 .amount-label {
   color: var(--text-secondary);
-  font-size: 0.9rem;
-  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+  margin-bottom: 0.75rem;
+  font-weight: 500;
 }
 
 .amount-value {
-  font-size: 2.5rem;
-  font-weight: bold;
-  color: var(--green-lila);
+  font-size: 3rem;
+  font-weight: 800;
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .claim-description {
   color: var(--text-secondary);
+  font-size: 0.95rem;
   line-height: 1.6;
+  text-align: center;
+  margin: 0;
 }
 
 .btn-claim {
   width: 100%;
   padding: 1.25rem;
-  background: linear-gradient(135deg, var(--purple), var(--green-lila));
+  background: var(--gradient-primary);
   color: white;
   border: none;
-  border-radius: 12px;
+  border-radius: 16px;
   font-size: 1.1rem;
-  font-weight: bold;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
 }
 
 .btn-claim:hover:not(:disabled) {
@@ -59,12 +67,22 @@
 .btn-claim:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  transform: none;
 }
 
 .claim-success {
-  margin-top: 1rem;
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: rgba(167, 139, 250, 0.1);
+  border-radius: 16px;
+  border: 2px solid var(--green-lila);
   text-align: center;
-  color: var(--green-lila);
-  font-weight: bold;
+  animation: slideIn 0.5s ease-out;
 }
 
+.claim-success p {
+  color: var(--green-lila);
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0;
+}

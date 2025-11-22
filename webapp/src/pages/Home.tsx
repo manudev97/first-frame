@@ -1,9 +1,11 @@
 import { Link } from 'react-router-dom';
+import Navigation from '../components/Navigation';
 import './Home.css';
 
 function Home() {
   return (
     <div className="home">
+      <Navigation title="" showBack={false} />
       <div className="hero">
         <div className="logo-container">
           <img 
@@ -11,7 +13,6 @@ function Home() {
             alt="FirstFrame Logo" 
             className="logo"
             onError={(e) => {
-              // Si el logo no existe, ocultar la imagen silenciosamente
               const target = e.target as HTMLImageElement;
               if (target.parentElement) {
                 target.parentElement.style.display = 'none';

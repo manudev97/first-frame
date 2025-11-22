@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import Navigation from '../components/Navigation';
+import { getTelegramUser } from '../utils/telegram';
 import './Upload.css';
 
 // Usar proxy de Vite en desarrollo, o URL configurada en producción
@@ -14,6 +16,7 @@ function Upload() {
   const [imdbData, setImdbData] = useState<any>(null);
   const [registeredIpId, setRegisteredIpId] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [channelMessageId, setChannelMessageId] = useState<number | null>(null);
   
   // Metadatos del video de Telegram (si viene desde el bot)
   const [videoInfo, setVideoInfo] = useState<{
@@ -118,39 +121,114 @@ function Upload() {
       // IMPORTANTE: Si no hay currency token configurado, las regalías se establecerán a 0
       // para evitar el error "Royalty policy requires currency token"
       // En producción, necesitarás configurar un wrapped IP token address para regalías
+      // 4. Registrar términos de licencia (ASÍNCRONO - no bloquea el proceso)
+      // Esto se hace en paralelo para no bloquear la UI
       if (storyResponse.data.ipId) {
-        try {
-          await axios.post(`${API_URL}/story/register-license`, {
-            ipId: storyResponse.data.ipId, // IP ID requerido
-            licenseTerms: {
-              commercialUse: true,
-              // Por ahora, establecer a 0 porque no hay currency token configurado
-              // Cuando tengas wrapped IP token, puedes establecer a 10
-              commercialRevShare: 0, // 0% hasta configurar currency token (wrapped IP)
-              commercialAttribution: true,
-              derivativesAllowed: true,
-              derivativesAttribution: true,
-              mintingFee: '0', // Sin fee inicial para facilitar acceso
-              // TODO: Configurar wrapped IP token address aquí para habilitar regalías
-              // currency: '0x...', // Address del wrapped IP token en Aeneid testnet
-            },
-          });
-          console.log('✅ Licencia registrada exitosamente');
-        } catch (licenseError) {
-          console.warn('No se pudo registrar licencia, pero el IP fue registrado:', licenseError);
-        }
+        // Hacer el registro de licencia de forma asíncrona sin esperar
+        (async () => {
+          try {
+            const licenseResponse = await axios.post(`${API_URL}/story/register-license`, {
+              ipId: storyResponse.data.ipId, // IP ID requerido
+              licenseTerms: {
+                // CRÍTICO: commercialUse debe ser false cuando no hay currency token
+                // para evitar el error "Royalty policy requires currency token"
+                commercialUse: false, // false porque no hay currency token configurado
+                commercialRevShare: 0, // 0% hasta configurar currency token (wrapped IP)
+                commercialAttribution: true,
+                derivativesAllowed: true,
+                derivativesAttribution: true,
+                mintingFee: '0', // Sin fee inicial para facilitar acceso
+                // TODO: Configurar wrapped IP token address aquí para habilitar regalías
+                // Cuando tengas wrapped IP token, puedes establecer:
+                // commercialUse: true,
+                // commercialRevShare: 10, // 10% de regalías
+                // currency: '0x...', // Address del wrapped IP token en Aeneid testnet
+              },
+            });
+            if (licenseResponse.data.success) {
+              console.log('✅ Licencia registrada exitosamente');
+            } else if (licenseResponse.data.warning) {
+              console.warn('⚠️  IP registrado, pero licencia no se pudo registrar:', licenseResponse.data.message);
+              // No es crítico - el IP está registrado
+            }
+          } catch (licenseError: any) {
+            // Si el error es sobre currency token, no es crítico - el IP está registrado
+            if (licenseError.response?.data?.warning) {
+              console.warn('⚠️  IP registrado, pero licencia no se pudo registrar:', licenseError.response.data.message);
+            } else {
+              console.warn('No se pudo registrar licencia, pero el IP fue registrado:', licenseError);
+            }
+          }
+        })();
       }
 
+      // IMPORTANTE: Verificar que la respuesta tenga los datos necesarios
+      if (!storyResponse.data.success) {
+        throw new Error('No se pudo registrar el IP en Story Protocol: ' + (storyResponse.data.error || 'Error desconocido'));
+      }
+
+      if (!storyResponse.data.ipId || !storyResponse.data.txHash) {
+        console.error('❌ Respuesta del backend sin ipId o txHash:', storyResponse.data);
+        throw new Error('El backend no devolvió ipId o txHash. Respuesta: ' + JSON.stringify(storyResponse.data));
+      }
+
+      // IMPORTANTE: Establecer éxito ANTES de reenviar el video para que la UI se muestre inmediatamente
+      console.log('✅ IP registrado exitosamente:', {
+        ipId: storyResponse.data.ipId,
+        txHash: storyResponse.data.txHash,
+      });
+      
       setRegisteredIpId(storyResponse.data.ipId);
       setTxHash(storyResponse.data.txHash);
       setSuccess(true);
-      console.log('IP registrado:', storyResponse.data);
+      
+      console.log('✅ Estado actualizado - success=true, ipId y txHash establecidos');
+
+      // 5. Si hay videoFileId, reenviar al canal privado (ASÍNCRONO - no bloquea la UI)
+      // Esto se hace después de mostrar el éxito para que el usuario vea la transacción inmediatamente
+      if (videoInfo.fileId) {
+        // Hacer el reenvío de forma asíncrona sin esperar
+        (async () => {
+          try {
+            const telegramUser = getTelegramUser();
+            const forwardResponse = await axios.post(`${API_URL}/upload/forward-to-channel`, {
+              videoFileId: videoInfo.fileId,
+              title,
+              year: parseInt(year),
+              ipId: storyResponse.data.ipId,
+              uploaderTelegramId: telegramUser?.id || 0,
+              uploaderName: telegramUser ? `${telegramUser.first_name} ${telegramUser.last_name || ''}`.trim() : undefined,
+            });
+            
+            if (forwardResponse.data.success && forwardResponse.data.channelMessageId) {
+              setChannelMessageId(forwardResponse.data.channelMessageId);
+              console.log('✅ Video reenviado al canal privado');
+            }
+          } catch (forwardError) {
+            console.warn('No se pudo reenviar video al canal (el IP fue registrado):', forwardError);
+            // No mostrar error al usuario - el IP ya está registrado
+          }
+        })();
+      }
     } catch (error: any) {
-      console.error('Error subiendo video:', error);
+      console.error('❌ Error subiendo video:', error);
+      console.error('Detalles del error:', {
+        message: error.message,
+        response: error.response?.data,
+        stack: error.stack,
+      });
+      
       const errorMsg = error.response?.data?.error || error.message || 'Error desconocido';
+      
+      // Asegurar que loading se desactive
+      setLoading(false);
+      setSuccess(false);
+      
+      // Mostrar error al usuario
       alert('Error: ' + errorMsg);
     } finally {
       setLoading(false);
+      console.log('✅ Proceso de registro finalizado (loading=false)');
     }
   };
 
@@ -175,6 +253,7 @@ function Upload() {
   if (success) {
     return (
       <div className="upload-success">
+        <Navigation title="Registro Exitoso" />
         <h2>✅ Video Registrado</h2>
         <p>Tu contenido ha sido registrado como IP en Story Protocol.</p>
         
@@ -215,11 +294,12 @@ function Upload() {
             <p style={{ marginBottom: '10px' }}>
               <strong>Hash de Transacción:</strong>
             </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
               <code 
                 onClick={() => copyToClipboard(txHash)}
                 style={{
                   flex: 1,
+                  minWidth: '200px',
                   padding: '8px',
                   backgroundColor: 'rgba(0, 0, 0, 0.2)',
                   borderRadius: '4px',
@@ -255,7 +335,8 @@ function Upload() {
                   color: 'white',
                   textDecoration: 'none',
                   borderRadius: '4px',
-                  fontSize: '0.9em'
+                  fontSize: '0.9em',
+                  display: 'inline-block'
                 }}
               >
                 🔗 Ver TX
@@ -264,11 +345,27 @@ function Upload() {
           </div>
         )}
 
-        {imdbData?.poster && (
+        {channelMessageId && (
+          <div style={{
+            marginTop: '20px',
+            padding: '15px',
+            backgroundColor: 'rgba(167, 139, 250, 0.1)',
+            borderRadius: '8px'
+          }}>
+            <p style={{ marginBottom: '10px' }}>
+              <strong>✅ Video Reenviado al Canal Privado</strong>
+            </p>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+              El video ha sido publicado en el canal privado. Los usuarios que resuelvan el puzzle obtendrán acceso.
+            </p>
+          </div>
+        )}
+
+        {imdbData?.poster && registeredIpId && (
           <div style={{ marginTop: '20px' }}>
             <p>🎮 Crea un puzzle con el póster para gamificar el acceso:</p>
             <a 
-              href={`/puzzle?poster=${encodeURIComponent(imdbData.poster)}&ipId=${registeredIpId || ''}&title=${encodeURIComponent(imdbData.title)}&year=${imdbData.year}`}
+              href={`/puzzle?poster=${encodeURIComponent(imdbData.poster)}&ipId=${registeredIpId}&title=${encodeURIComponent(imdbData.title)}&year=${imdbData.year}`}
               className="btn-primary"
               style={{ display: 'inline-block', marginTop: '10px' }}
             >
@@ -276,13 +373,21 @@ function Upload() {
             </a>
           </div>
         )}
+
+        <button 
+          onClick={() => window.location.reload()} 
+          className="btn-primary" 
+          style={{ marginTop: '30px' }}
+        >
+          Registrar Otro Video
+        </button>
       </div>
     );
   }
 
   return (
     <div className="upload">
-      <h2>📤 Subir Video</h2>
+      <Navigation title="Subir Video" />
       
       <form onSubmit={handleSubmit} className="upload-form">
         <div className="form-group">

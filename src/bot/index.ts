@@ -1,10 +1,18 @@
 import { Telegraf, Context } from 'telegraf';
 import { message } from 'telegraf/filters';
 import dotenv from 'dotenv';
+import { setBotInstance } from '../backend/routes/upload';
 
 dotenv.config();
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN!);
+
+// Exportar instancia del bot para que el backend pueda usarlo
+export { bot };
+
+// Configurar instancia del bot en el módulo de upload
+// Nota: Esto se ejecuta cuando se importa este módulo
+setBotInstance(bot);
 
 // Comandos básicos
 bot.command('start', async (ctx: Context) => {
@@ -151,6 +159,7 @@ bot.command('report', async (ctx: Context) => {
 bot.on(message('video'), async (ctx: Context) => {
   const webappUrl = process.env.TELEGRAM_WEBAPP_URL;
   const video = ctx.message.video;
+  const channelId = process.env.TELEGRAM_CHANNEL_ID || process.env.TELEGRAM_CHANNEL_LINK;
   
   // Extraer metadatos del video de Telegram
   const videoInfo = {
@@ -165,7 +174,9 @@ bot.on(message('video'), async (ctx: Context) => {
   };
   
   // Crear link del video (usando file_id para acceso)
-  const videoLink = `https://t.me/${ctx.from?.username || 'user'}/${ctx.message.message_id}`;
+  const chatId = ctx.chat?.id;
+  const messageId = ctx.message.message_id;
+  const videoLink = `https://t.me/c/${Math.abs(chatId!)}/${messageId}`;
   
   const replyOptions: any = {};
   
@@ -191,12 +202,13 @@ bot.on(message('video'), async (ctx: Context) => {
     (videoInfo.fileSize ? `💾 Tamaño: ${videoInfo.fileSize} MB\n` : '') +
     (videoInfo.duration ? `⏱️ Duración: ${videoInfo.duration} minutos\n` : '') +
     `🔗 Link: ${videoLink}\n\n` +
-    `Para registrar este video como IP, proporciona:\n` +
-    `1. Nombre de la película/serie\n` +
-    `2. Año de lanzamiento\n\n` +
-    `O haz clic en "Registrar IP" para usar el asistente completo.`;
+    `✅ Este video será reenviado al canal privado una vez que lo registres como IP.\n\n` +
+    `Para registrar este video como IP, haz clic en "Registrar IP" y completa la información.`;
   
   await ctx.reply(infoText, replyOptions);
+  
+  // NOTA: El reenvío al canal se hace automáticamente cuando el usuario completa
+  // el registro del IP en la Mini App. Ver src/backend/routes/upload.ts para la lógica completa.
 });
 
 // Manejo de errores
@@ -204,12 +216,55 @@ bot.catch((err, ctx) => {
   console.error(`Error para ${ctx.updateType}:`, err);
 });
 
-// Iniciar bot
-bot.launch().then(() => {
-  console.log('🤖 Bot de Telegram iniciado');
-}).catch((err) => {
-  console.error('Error al iniciar bot:', err);
-  process.exit(1);
+// Iniciar bot con manejo mejorado de errores
+// IMPORTANTE: El bot puede funcionar sin polling si solo se usa para enviar mensajes
+// Para evitar conflictos de múltiples instancias, intentamos iniciar el bot pero no fallamos si hay conflicto
+const startBot = async () => {
+  try {
+    // Verificar si el bot token está configurado
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+      console.warn('⚠️  TELEGRAM_BOT_TOKEN no está configurado. El bot no se iniciará.');
+      console.warn('💡 El backend seguirá funcionando, pero no se podrán enviar mensajes al canal.');
+      return;
+    }
+
+    // Intentar iniciar el bot con opciones para evitar conflictos
+    // Usar dropPendingUpdates para evitar procesar mensajes antiguos
+    await bot.launch({
+      dropPendingUpdates: true, // Ignorar actualizaciones pendientes al iniciar
+    });
+    console.log('🤖 Bot de Telegram iniciado correctamente');
+  } catch (err: any) {
+    // Si el error es por múltiples instancias, solo mostrar advertencia pero no fallar
+    if (err.response?.error_code === 409 || err.message?.includes('409') || err.message?.includes('Conflict')) {
+      console.warn('⚠️  Advertencia: Ya hay otra instancia del bot corriendo.');
+      console.warn('💡 El bot puede seguir funcionando para enviar mensajes al canal, pero solo una instancia recibirá comandos.');
+      console.warn('💡 Para evitar esto, detén todas las instancias del bot antes de iniciar una nueva.');
+      console.warn('💡 El backend seguirá funcionando normalmente y podrá enviar videos al canal.');
+      // No salir del proceso - permitir que el backend siga funcionando
+      // El bot puede seguir siendo usado para enviar mensajes incluso sin polling activo
+      // Intentar usar el bot sin polling activo (solo para enviar mensajes)
+      return;
+    }
+    
+    // Si es un error de token, es crítico pero no detenemos el backend
+    if (err.message?.includes('token') || err.message?.includes('Unauthorized')) {
+      console.error('❌ Error crítico: Token del bot inválido o no autorizado.');
+      console.error('💡 Verifica que TELEGRAM_BOT_TOKEN esté configurado correctamente en tu .env');
+      // No salir del proceso - el backend puede seguir funcionando sin el bot
+      return;
+    }
+    
+    console.error('⚠️  Error al iniciar bot:', err.message || err);
+    console.warn('💡 El backend seguirá funcionando, pero el bot puede no estar disponible.');
+  }
+};
+
+// Iniciar bot de forma asíncrona (no bloquea el proceso)
+// Esto permite que el backend siga funcionando incluso si el bot no se puede iniciar
+startBot().catch((err) => {
+  console.error('Error en startBot:', err);
+  // No hacer nada - el backend debe seguir funcionando
 });
 
 // Graceful shutdown

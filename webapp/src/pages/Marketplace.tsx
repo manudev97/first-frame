@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
+import Navigation from '../components/Navigation';
 import './Marketplace.css';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:3001/api');
@@ -28,12 +29,12 @@ function Marketplace() {
     try {
       setLoading(true);
       const response = await axios.get(`${API_URL}/marketplace/list`);
+      
       if (response.data.success && response.data.items) {
         setItems(response.data.items);
       }
     } catch (error: any) {
       console.error('Error cargando marketplace:', error);
-      // Por ahora, mostrar mensaje informativo
     } finally {
       setLoading(false);
     }
@@ -63,7 +64,7 @@ function Marketplace() {
 
   return (
     <div className="marketplace">
-      <h2>🎬 Marketplace de IPs</h2>
+      <Navigation title="Marketplace" />
       
       <div className="marketplace-search">
         <input

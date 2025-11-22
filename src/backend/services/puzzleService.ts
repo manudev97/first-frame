@@ -18,12 +18,50 @@ interface Puzzle {
 
 const puzzles: Map<string, Puzzle> = new Map();
 
-export async function createPuzzle(imageUrl: string, difficulty: number = 3): Promise<Puzzle> {
+// Función para obtener imagen de mayor calidad de IMDB
+async function getHighQualityImage(originalUrl: string): Promise<string> {
+  try {
+    // Si la URL ya es de alta calidad o no es de IMDB, devolver tal cual
+    if (!originalUrl.includes('media-imdb.com') && !originalUrl.includes('media-amazon.com')) {
+      return originalUrl;
+    }
+
+    // Mejorar URL de IMDB para máxima calidad
+    let improvedUrl = originalUrl
+      .replace('http://', 'https://')
+      .replace(/_V1_SX(\d+)\./g, '_V1_SX1000.') // Reemplazar cualquier tamaño por 1000px
+      .replace(/_V1_UX(\d+)\./g, '_V1_SX1000.')
+      .replace(/_V1_UY(\d+)\./g, '_V1_SX1000.')
+      .replace(/\._V1_/g, '._V1_SX1000.'); // Si no tiene tamaño, agregar SX1000
+
+    // Verificar que la URL mejorada funcione
+    try {
+      const testResponse = await axios.head(improvedUrl, { timeout: 5000 });
+      if (testResponse.status === 200) {
+        return improvedUrl;
+      }
+    } catch {
+      // Si falla, usar la original
+      console.warn('URL mejorada no disponible, usando original');
+    }
+
+    return originalUrl;
+  } catch (error) {
+    console.warn('Error mejorando calidad de imagen:', error);
+    return originalUrl;
+  }
+}
+
+export async function createPuzzle(imageUrl: string, difficulty: number = 2): Promise<Puzzle> {
   try {
     // Validar URL
     if (!imageUrl || (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://'))) {
       throw new Error('URL de imagen inválida');
     }
+    
+    // Obtener URL de mayor calidad
+    const highQualityUrl = await getHighQualityImage(imageUrl);
+    console.log(`📸 Usando imagen de alta calidad: ${highQualityUrl}`);
     
     // Descargar imagen con timeout y manejo de errores mejorado
     // Intentar múltiples veces si falla (problemas de red comunes)
@@ -33,12 +71,14 @@ export async function createPuzzle(imageUrl: string, difficulty: number = 3): Pr
     
     while (retries > 0) {
       try {
-        imageResponse = await axios.get(imageUrl, { 
+        imageResponse = await axios.get(highQualityUrl, { 
           responseType: 'arraybuffer',
           timeout: 15000, // 15 segundos timeout
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Accept': 'image/*',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Referer': 'https://www.imdb.com/',
           },
           maxRedirects: 5,
         });
@@ -62,8 +102,16 @@ export async function createPuzzle(imageUrl: string, difficulty: number = 3): Pr
     
     const imageBuffer = Buffer.from(imageResponse.data);
 
-    // Procesar imagen con sharp
-    const metadata = await sharp(imageBuffer).metadata();
+    // Procesar imagen con sharp - redimensionar a tamaño óptimo para el puzzle
+    // Asegurar que la imagen tenga un tamaño razonable pero mantenga calidad
+    const processedImage = await sharp(imageBuffer)
+      .resize(800, 1200, { // Tamaño óptimo: 800x1200 mantiene calidad y es manejable
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+      .toBuffer();
+    
+    const metadata = await sharp(processedImage).metadata();
     const width = metadata.width || 400;
     const height = metadata.height || 600;
 
@@ -79,8 +127,8 @@ export async function createPuzzle(imageUrl: string, difficulty: number = 3): Pr
       const x = col * pieceWidth;
       const y = row * pieceHeight;
 
-      // Extraer pieza
-      const pieceBuffer = await sharp(imageBuffer)
+      // Extraer pieza de la imagen procesada
+      const pieceBuffer = await sharp(processedImage)
         .extract({
           left: x,
           top: y,
@@ -100,11 +148,26 @@ export async function createPuzzle(imageUrl: string, difficulty: number = 3): Pr
       });
     }
 
-    // Mezclar piezas (excepto la primera)
+    // Mezclar piezas de forma inteligente (mantener algunas juntas para hacer más fácil)
+    // Para dificultad 2 (4 piezas), mezclar menos para que sea más fácil
     const shuffled = [...pieces];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    
+    if (difficulty <= 2) {
+      // Para 2x2, solo intercambiar algunas piezas para que sea más fácil
+      const swapCount = Math.floor(totalPieces / 2);
+      for (let i = 0; i < swapCount; i++) {
+        const idx1 = Math.floor(Math.random() * totalPieces);
+        const idx2 = Math.floor(Math.random() * totalPieces);
+        if (idx1 !== idx2) {
+          [shuffled[idx1], shuffled[idx2]] = [shuffled[idx2], shuffled[idx1]];
+        }
+      }
+    } else {
+      // Para dificultad mayor, mezclar completamente
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
     }
 
     const puzzle: Puzzle = {

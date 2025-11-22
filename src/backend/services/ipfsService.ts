@@ -83,13 +83,34 @@ export async function createNFTMetadata(data: {
     attributes.push({ trait_type: 'IMDB ID', value: data.imdbId });
   }
 
+  // CRÍTICO: Asegurar que la imagen sea una URL válida y accesible
+  // Si no hay imagen, usar un placeholder o fallback
+  let imageUrl = data.image;
+  if (!imageUrl || imageUrl === '' || imageUrl === 'N/A') {
+    // Si no hay póster, usar un placeholder
+    imageUrl = 'https://via.placeholder.com/300x450?text=No+Poster+Available';
+    console.warn('⚠️  No hay póster disponible, usando placeholder');
+  }
+  
+  // Asegurar que la URL sea HTTPS (los exploradores requieren HTTPS)
+  if (imageUrl && imageUrl.startsWith('http://')) {
+    imageUrl = imageUrl.replace('http://', 'https://');
+  }
+
   const metadata: NFTMetadata = {
     name: data.name,
     description: data.description,
-    image: data.image, // URL del póster de IMDB - esto es lo que muestra el explorador
+    image: imageUrl, // URL del póster de IMDB - esto es lo que muestra el explorador
     external_url: data.external_url,
     attributes,
   };
+  
+  // Log para debugging
+  console.log('📸 NFT Metadata creado:', {
+    name: metadata.name,
+    image: metadata.image,
+    hasImage: !!metadata.image && metadata.image !== '',
+  });
 
   const metadataString = JSON.stringify(metadata);
   const hash = crypto.createHash('sha256').update(metadataString).digest('hex');

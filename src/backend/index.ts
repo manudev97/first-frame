@@ -6,6 +6,8 @@ import { imdbRouter } from './routes/imdb';
 import { puzzleRouter } from './routes/puzzle';
 import { ipRouter } from './routes/ip';
 import { marketplaceRouter } from './routes/marketplace';
+import { hallidayRouter } from './routes/halliday';
+import { uploadRouter } from './routes/upload';
 
 dotenv.config();
 
@@ -42,6 +44,8 @@ app.use('/api/imdb', imdbRouter);
 app.use('/api/puzzle', puzzleRouter);
 app.use('/api/ip', ipRouter);
 app.use('/api/marketplace', marketplaceRouter);
+app.use('/api/halliday', hallidayRouter);
+app.use('/api/upload', uploadRouter);
 
 // Health check
 app.get('/health', (req, res) => {

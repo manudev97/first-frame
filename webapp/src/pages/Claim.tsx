@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import axios from 'axios';
+import Navigation from '../components/Navigation';
 import './Claim.css';
 
 // Usar proxy de Vite en desarrollo, o URL configurada en producción
@@ -28,7 +29,7 @@ function Claim() {
 
   return (
     <div className="claim">
-      <h2>💰 Reclamar Regalías</h2>
+      <Navigation title="Reclamar Regalías" />
       
       <div className="claim-info">
         <div className="claim-amount">

@@ -68,13 +68,20 @@ router.post('/validate', async (req, res) => {
         }
       }
       
+      // Obtener link del canal privado
+      const channelLink = process.env.TELEGRAM_CHANNEL_LINK || 
+                          (process.env.TELEGRAM_CHANNEL_ID ? 
+                            (process.env.TELEGRAM_CHANNEL_ID.startsWith('@') ? 
+                              `https://t.me/${process.env.TELEGRAM_CHANNEL_ID.slice(1)}` : 
+                              `https://t.me/c/${process.env.TELEGRAM_CHANNEL_ID}`) : 
+                            'https://t.me/topestrenos');
+      
       res.json({
         success: true,
         message: '¡Puzzle completado correctamente!',
         accessGranted: true,
         derivativeIpId: derivativeIpId,
-        // En producción, aquí se otorgaría acceso al canal de Telegram
-        channelLink: process.env.TELEGRAM_CHANNEL_LINK || 'https://t.me/your_channel',
+        channelLink: channelLink,
       });
     } else {
       res.json({

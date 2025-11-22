@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import axios from 'axios';
+import Navigation from '../components/Navigation';
 import './Report.css';
 
 // Usar proxy de Vite en desarrollo, o URL configurada en producción
@@ -44,7 +45,7 @@ function Report() {
 
   return (
     <div className="report">
-      <h2>🚨 Reportar Infracción</h2>
+      <Navigation title="Reportar Infracción" />
       
       <form onSubmit={handleSubmit} className="report-form">
         <div className="form-group">

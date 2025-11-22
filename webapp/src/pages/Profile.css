@@ -1,55 +1,314 @@
 .profile {
-  padding: 1.5rem;
+  padding: 1rem;
   max-width: 600px;
   margin: 0 auto;
+  animation: slideIn 0.5s ease-out;
 }
 
-.profile h2 {
+.profile-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 0 0.5rem;
+}
+
+.profile-card {
+  background: var(--surface);
+  border-radius: 20px;
+  padding: 1.75rem;
+  border: 2px solid rgba(139, 92, 246, 0.2);
+  box-shadow: var(--shadow-card);
+  transition: all 0.3s ease;
+  animation: slideIn 0.6s ease-out backwards;
+}
+
+.profile-card:nth-child(1) { animation-delay: 0.1s; }
+.profile-card:nth-child(2) { animation-delay: 0.2s; }
+.profile-card:nth-child(3) { animation-delay: 0.3s; }
+
+.profile-card:hover {
+  border-color: var(--purple-light);
+  box-shadow: var(--shadow-glow), var(--shadow-card);
+  transform: translateY(-4px);
+}
+
+.card-header {
   margin-bottom: 1.5rem;
-  font-size: 1.8rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(167, 139, 250, 0.2);
 }
 
+.card-header h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0;
+}
+
+/* Telegram User Info */
+.user-details {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.user-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--gradient-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: white;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+  flex-shrink: 0;
+}
+
+.user-info {
+  flex: 1;
+}
+
+.user-info h4 {
+  font-size: 1.25rem;
+  margin: 0 0 0.25rem 0;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.username {
+  color: var(--purple-light);
+  font-size: 0.95rem;
+  margin: 0 0 0.25rem 0;
+  font-weight: 500;
+}
+
+.user-id {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin: 0;
+  font-family: 'Courier New', monospace;
+}
+
+/* Wallet Info */
+.wallet-disconnected {
+  text-align: center;
+  padding: 1rem 0;
+}
+
+.wallet-disconnected p {
+  color: var(--text-secondary);
+  margin-bottom: 1.25rem;
+  font-size: 0.95rem;
+}
+
+.btn-connect-wallet {
+  width: 100%;
+  padding: 1rem 1.5rem;
+  background: var(--gradient-primary);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+}
+
+.btn-connect-wallet:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+}
+
+.btn-connect-wallet:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.wallet-connected {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.wallet-address,
+.wallet-balance {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.label {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.address {
+  background: var(--background);
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  color: var(--purple-light);
+  word-break: break-all;
+  border: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+.balance {
+  font-size: 1.5rem;
+  font-weight: 700;
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.btn-wallet-action {
+  margin-top: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--surface-elevated);
+  border: 2px solid var(--purple);
+  color: var(--purple-light);
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-wallet-action:hover {
+  background: var(--purple);
+  color: white;
+  transform: translateY(-2px);
+}
+
+/* Stats */
 .profile-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 1rem;
-  margin-bottom: 2rem;
+  margin: 0;
 }
 
 .stat-card {
   background: var(--surface);
-  border-radius: 12px;
-  padding: 1.5rem;
+  border-radius: 16px;
+  padding: 1.5rem 1rem;
   text-align: center;
-  border: 2px solid var(--purple);
+  border: 2px solid rgba(139, 92, 246, 0.2);
+  transition: all 0.3s ease;
+  animation: slideIn 0.6s ease-out backwards;
+}
+
+.stat-card:nth-child(1) { animation-delay: 0.1s; }
+.stat-card:nth-child(2) { animation-delay: 0.2s; }
+.stat-card:nth-child(3) { animation-delay: 0.3s; }
+
+.stat-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--purple-light);
+  box-shadow: var(--shadow-glow);
+}
+
+.stat-icon {
+  font-size: 2rem;
+  margin-bottom: 0.75rem;
+  filter: drop-shadow(0 0 10px rgba(167, 139, 250, 0.5));
 }
 
 .stat-value {
-  font-size: 1.8rem;
-  font-weight: bold;
-  color: var(--green-lila);
+  font-size: 2rem;
+  font-weight: 800;
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   margin-bottom: 0.5rem;
 }
 
 .stat-label {
   color: var(--text-secondary);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 500;
 }
 
+/* Profile Section */
 .profile-section {
   background: var(--surface);
-  border-radius: 16px;
-  padding: 1.5rem;
+  border-radius: 20px;
+  padding: 1.75rem;
+  border: 2px solid rgba(139, 92, 246, 0.2);
 }
 
 .profile-section h3 {
-  margin-bottom: 1rem;
-  color: var(--purple-light);
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 1.25rem;
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .empty-state {
   text-align: center;
+  padding: 2rem 1rem;
   color: var(--text-secondary);
-  padding: 2rem;
 }
 
+.empty-state p {
+  margin-bottom: 1rem;
+  font-size: 1rem;
+}
+
+.btn-link {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  background: var(--gradient-primary);
+  color: white;
+  text-decoration: none;
+  border-radius: 12px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+}
+
+.btn-link:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+}
+
+/* Debug Info */
+.debug-info {
+  opacity: 0.7;
+  border-style: dashed;
+}
+
+.debug-text {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+@media (max-width: 480px) {
+  .profile-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .user-details {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .wallet-address,
+  .wallet-balance {
+    text-align: left;
+  }
+}
