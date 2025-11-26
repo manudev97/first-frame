@@ -1,96 +1,120 @@
 # FirstFrame 🎬
 
-**FirstFrame** es una aplicación Telegram Mini App que protege la propiedad intelectual de contenido audiovisual mediante blockchain Story Protocol, gamificando el acceso mediante rompecabezas interactivos.
+**FirstFrame** is a Telegram Mini App that protects intellectual property of audiovisual content through Story Protocol blockchain, gamifying access through interactive puzzles.
 
-## 🎯 Características
+## 🎯 Problem It Solves
 
-- ✅ Registro de IP en Story Protocol para videos originales
-- 🧩 Sistema de rompecabezas gamificado basado en pósteres de IMDB
-- 💰 Gestión automática de regalías y licencias
-- 🛡️ Sistema de disputas y penalizaciones para infracciones
-- 🎮 Integración con Verse8 para crear juegos a partir de IPs
-- 💳 Integración con Halliday para pagos sin fricción
-- 🎨 UI moderna con colores morado y verde lila
+### The Challenge on Telegram
 
-## 🏗️ Arquitectura
+Telegram is an extremely popular platform for sharing content, but this has created a critical problem:
+
+- **Massive penalties**: Streaming platforms and digital distributors constantly report users and channels that share movies and series videos publicly
+- **Channel closures**: Thousands of channels are penalized or closed for sharing unauthorized content
+- **Loss of access**: Users lose access to valuable content due to these penalties
+- **Lack of monetization**: Creators and distributors don't receive compensation for the use of their content
+
+### FirstFrame's Solution
+
+**FirstFrame solves this problem through a coordinated royalty system:**
+
+✅ **IP Registration on Blockchain**: Each video is registered as intellectual property on Story Protocol, creating an immutable record of authorship
+
+✅ **Automatic Royalty System**: When users share content, royalties are automatically paid to rights holders through smart contracts
+
+✅ **Controlled Access**: Videos are shared in private channels, accessible only after solving a puzzle, reducing the risk of penalties
+
+✅ **Fair Monetization**: Creators and distributors receive compensation for the use of their content, encouraging collaboration instead of penalties
+
+**Result**: If there was a way to pay coordinated royalties for copyright usage, these penalties might not occur. FirstFrame implements exactly this solution on Story Protocol, allowing Telegram to remain an easy platform to share content while respecting copyright and compensating creators.
+
+## 🎯 Features
+
+- ✅ IP registration on Story Protocol for original videos
+- 🧩 Gamified puzzle system based on IMDB posters
+- 💰 Automatic royalty and license management
+- 🛡️ Dispute and penalty system for infringements
+- 🎮 Integration with Verse8 to create games from IPs
+- 💳 Integration with Halliday for frictionless payments
+- 🎨 Modern UI with purple and lilac green colors
+
+## 🏗️ Architecture
 
 ```
 FirstFrame/
 ├── src/
-│   ├── bot/           # Bot de Telegram
+│   ├── bot/           # Telegram Bot
 │   ├── backend/       # API Backend
-│   └── shared/        # Utilidades compartidas
+│   └── shared/       # Shared utilities
 ├── webapp/            # Mini App Frontend (React)
-└── docs/              # Documentación
+└── docs/              # Documentation
 ```
 
-## 🚀 Instalación
+## 🚀 Installation
 
 ```bash
-# Instalar dependencias
+# Install dependencies
 npm install
 
-# Instalar dependencias de la webapp
+# Install webapp dependencies
 cd webapp && npm install && cd ..
 
-# Configurar variables de entorno
+# Configure environment variables
 cp env.example .env
-# Editar .env con tus credenciales
+# Edit .env with your credentials
 ```
 
-## 🔧 Configuración
+## 🔧 Configuration
 
 1. **Telegram Bot:**
-   - Crea un bot con [BotFather](https://t.me/botfather)
-   - Obtén el token y configúralo en `.env`
-   - **IMPORTANTE:** Telegram requiere HTTPS para Mini Apps. Ver [docs/HTTPS_SETUP.md](docs/HTTPS_SETUP.md) para configurar un túnel HTTPS en desarrollo
+   - Create a bot with [BotFather](https://t.me/botfather)
+   - Get the token and configure it in `.env`
+   - **IMPORTANT:** Telegram requires HTTPS for Mini Apps. See [docs/HTTPS_SETUP.md](docs/HTTPS_SETUP.md) to configure an HTTPS tunnel for development
 
 2. **Story Protocol:**
-   - Obtén tus credenciales de Story Protocol
-   - Configura `STORY_RPC_URL`, `STORY_CHAIN_ID` y `STORY_PRIVATE_KEY`
-   - Configura `STORY_SPG_NFT_CONTRACT`:
-     - **Opción 1 (Recomendada)**: Crea tu propio contrato con `npm run get-spg-contract` (más control, mejor para marketplace)
-     - **Opción 2**: Usa el contrato público de testnet: `0xc32A8a0FF3beDDDa58393d022aF433e78739FAbc`
-   - Ver [docs/CREAR_CONTRATO_PROPIO.md](docs/CREAR_CONTRATO_PROPIO.md) para más detalles
+   - Get your Story Protocol credentials
+   - Configure `STORY_RPC_URL`, `STORY_CHAIN_ID` and `STORY_PRIVATE_KEY`
+   - Configure `STORY_SPG_NFT_CONTRACT`:
+     - **Option 1 (Recommended)**: Create your own contract with `npm run get-spg-contract` (more control, better for marketplace)
+     - **Option 2**: Use the public testnet contract: `0xc32A8a0FF3beDDDa58393d022aF433e78739FAbc`
+   - See [docs/CREAR_CONTRATO_PROPIO.md](docs/CREAR_CONTRATO_PROPIO.md) for more details
 
 3. **IMDB API:**
-   - Obtén una API key de [OMDB](http://www.omdbapi.com/apikey.aspx)
-   - Configúrala en `.env` (solo la key, no la URL completa)
+   - Get an API key from [OMDB](http://www.omdbapi.com/apikey.aspx)
+   - Configure it in `.env` (key only, not the full URL)
 
-4. **IPFS (Opcional para desarrollo):**
-   - Para producción, configura `PINATA_API_KEY` y `PINATA_SECRET_KEY`
-   - En desarrollo, se usan URIs simuladas si no está configurado
+4. **IPFS (Optional for development):**
+   - For production, configure `PINATA_API_KEY` and `PINATA_SECRET_KEY`
+   - In development, simulated URIs are used if not configured
 
-5. **Halliday (Opcional):**
-   - Obtén tu API key de Halliday
-   - Configúrala en `.env`
+5. **Halliday (Optional):**
+   - Get your Halliday API key
+   - Configure it in `.env`
 
-## 🎮 Uso
+## 🎮 Usage
 
 ```bash
-# Desarrollo (ejecuta bot, backend y webapp)
+# Development (runs bot, backend and webapp)
 npm run dev
 
-# Solo bot
+# Bot only
 npm run dev:bot
 
-# Solo backend
+# Backend only
 npm run dev:backend
 
-# Solo webapp
+# Webapp only
 npm run dev:webapp
 ```
 
-## 📱 Comandos del Bot
+## 📱 Bot Commands
 
-- `/start` - Iniciar sesión
-- `/upload` - Subir un video para registro
-- `/puzzle` - Jugar rompecabezas
-- `/profile` - Ver perfil y IPs registrados
-- `/claim` - Reclamar regalías
-- `/report` - Reportar infracción
+- `/start` - Start session
+- `/upload` - Upload a video for registration
+- `/puzzle` - Play puzzle
+- `/profile` - View profile and registered IPs
+- `/claim` - Claim royalties
+- `/report` - Report infringement
 
-## 📄 Licencia
+## 📄 License
 
 MIT
-
