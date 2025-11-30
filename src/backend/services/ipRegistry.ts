@@ -4,6 +4,7 @@ import path from 'path';
 
 export interface RegisteredIP {
   ipId: string;
+  tokenId?: string; // Token ID (instance number) para construir la URL del explorador
   title: string;
   year?: number;
   posterUrl?: string;

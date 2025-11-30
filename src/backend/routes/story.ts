@@ -3,6 +3,7 @@ import { StoryClient } from '@story-protocol/core-sdk';
 import { createStoryClient } from '../services/storyClient';
 import { privateKeyToAccount } from 'viem/accounts';
 import { saveRegisteredIP } from '../services/ipRegistry';
+import { getIPDetailsFromTransaction } from '../services/txParser';
 
 const router = Router();
 
@@ -65,21 +66,8 @@ router.post('/register-ip', async (req, res) => {
       const metadataUriStr: string = typeof metadata.uri === 'string' ? metadata.uri : '';
       const nftMetadataUriStr: string = typeof metadata.nftUri === 'string' ? metadata.nftUri : metadataUriStr;
       
-      if (metadataUriStr && tx.ipId && tx.txHash) {
-        await saveRegisteredIP({
-          ipId: tx.ipId,
-          title: req.body.title || 'Untitled',
-          year: req.body.year,
-          posterUrl: req.body.posterUrl,
-          description: req.body.description,
-          imdbId: req.body.imdbId,
-          metadataUri: metadataUriStr,
-          nftMetadataUri: nftMetadataUriStr,
-          txHash: tx.txHash,
-          createdAt: new Date().toISOString(),
-          uploader: req.body.uploader,
-        });
-      }
+      // Guardar IP después de obtener el IP ID correcto y token ID
+      // Esto se hará después de parsear la transacción
     } catch (saveError) {
       console.warn('No se pudo guardar IP en registry (no crítico):', saveError);
     }
@@ -94,15 +82,69 @@ router.post('/register-ip', async (req, res) => {
               });
             }
 
+            // Obtener el IP ID correcto y el token ID desde los eventos de la transacción
+            let correctIpId = tx.ipId; // Fallback al IP ID del SDK
+            let tokenId: bigint | null = null;
+            
+            try {
+              const ipDetails = await getIPDetailsFromTransaction(
+                tx.txHash as `0x${string}`,
+                process.env.STORY_SPG_NFT_CONTRACT as `0x${string}`
+              );
+              
+              if (ipDetails) {
+                // Usar el IP ID desde los eventos si está disponible
+                if (ipDetails.ipId) {
+                  console.log('🔄 IP ID obtenido desde eventos de transacción:');
+                  console.log(`   SDK IP ID: ${tx.ipId}`);
+                  console.log(`   Event IP ID: ${ipDetails.ipId}`);
+                  correctIpId = ipDetails.ipId;
+                }
+                tokenId = ipDetails.tokenId;
+              } else {
+                console.warn('⚠️  No se pudieron extraer IP details desde eventos, usando SDK IP ID');
+              }
+            } catch (parseError: any) {
+              console.warn('⚠️  Error obteniendo IP details desde eventos (usando SDK IP ID):', parseError.message);
+            }
+
+            // Actualizar el registro del IP con el IP ID correcto y token ID
+            try {
+              const metadataUriStr: string = typeof metadata.uri === 'string' ? metadata.uri : '';
+              const nftMetadataUriStr: string = typeof metadata.nftUri === 'string' ? metadata.nftUri : metadataUriStr;
+              
+              if (metadataUriStr && correctIpId && tx.txHash) {
+                await saveRegisteredIP({
+                  ipId: correctIpId, // Usar el IP ID correcto
+                  tokenId: tokenId ? tokenId.toString() : undefined,
+                  title: req.body.title || 'Untitled',
+                  year: req.body.year,
+                  posterUrl: req.body.posterUrl,
+                  description: req.body.description,
+                  imdbId: req.body.imdbId,
+                  metadataUri: metadataUriStr,
+                  nftMetadataUri: nftMetadataUriStr,
+                  txHash: tx.txHash,
+                  createdAt: new Date().toISOString(),
+                  uploader: req.body.uploader,
+                });
+              }
+            } catch (saveError) {
+              console.warn('No se pudo actualizar IP en registry con IP ID correcto (no crítico):', saveError);
+            }
+
             console.log('✅ IP registrado exitosamente:', {
-              ipId: tx.ipId,
+              sdkIpId: tx.ipId,
+              correctIpId: correctIpId,
+              tokenId: tokenId ? tokenId.toString() : null,
               txHash: tx.txHash,
             });
 
             res.json({ 
               success: true, 
               txHash: tx.txHash, 
-              ipId: tx.ipId,
+              ipId: correctIpId, // Usar el IP ID correcto
+              tokenId: tokenId ? tokenId.toString() : null, // Incluir token ID si está disponible
             });
           } catch (error: any) {
             console.error('❌ Error registrando IP:', error);

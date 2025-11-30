@@ -15,6 +15,7 @@ function Upload() {
   const [success, setSuccess] = useState(false);
   const [imdbData, setImdbData] = useState<any>(null);
   const [registeredIpId, setRegisteredIpId] = useState<string | null>(null);
+  const [tokenId, setTokenId] = useState<string | null>(null); // Token ID (instance number)
   const [txHash, setTxHash] = useState<string | null>(null);
   const [channelMessageId, setChannelMessageId] = useState<number | null>(null);
   
@@ -179,6 +180,7 @@ function Upload() {
       });
       
       setRegisteredIpId(storyResponse.data.ipId);
+      setTokenId(storyResponse.data.tokenId || null); // Guardar token ID si está disponible
       setTxHash(storyResponse.data.txHash);
       setSuccess(true);
       
@@ -240,8 +242,13 @@ function Upload() {
     });
   };
 
-  const getStoryExplorerUrl = (ipId: string) => {
+  const getStoryExplorerUrl = (ipId: string, instanceId?: string | null) => {
     // URL del explorador de Story Protocol para Aeneid testnet
+    // Si tenemos el instance ID (token ID), incluirlo en la URL
+    if (instanceId) {
+      return `https://aeneid.storyscan.io/token/${ipId}/instance/${instanceId}`;
+    }
+    // Fallback a URL sin instance si no está disponible
     return `https://aeneid.storyscan.io/token/${ipId}`;
   };
 
@@ -268,7 +275,7 @@ function Upload() {
               <strong>IP ID:</strong>
             </p>
             <a 
-              href={getStoryExplorerUrl(registeredIpId)}
+              href={getStoryExplorerUrl(registeredIpId, tokenId)}
               target="_blank"
               rel="noopener noreferrer"
               style={{
@@ -280,6 +287,7 @@ function Upload() {
               }}
             >
               {registeredIpId}
+              {tokenId && <span style={{ fontSize: '0.9em', opacity: 0.8 }}> (Instance: {tokenId})</span>}
             </a>
           </div>
         )}
