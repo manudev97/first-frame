@@ -33,6 +33,7 @@ router.post('/validate', async (req, res) => {
     if (isValid) {
       // Si el puzzle está resuelto y hay un IP asociado, registrar el póster como derivado
       let derivativeIpId = null;
+      let derivativeTxHash = null;
       if (ipId && posterUrl) {
         try {
           // Crear metadata del póster
@@ -60,6 +61,7 @@ router.post('/validate', async (req, res) => {
             
             if (derivativeResponse.data.success) {
               derivativeIpId = derivativeResponse.data.ipId;
+              derivativeTxHash = derivativeResponse.data.txHash;
             }
           }
         } catch (derivativeError) {
@@ -81,6 +83,7 @@ router.post('/validate', async (req, res) => {
         message: '¡Puzzle completado correctamente!',
         accessGranted: true,
         derivativeIpId: derivativeIpId,
+        derivativeTxHash: derivativeTxHash,
         channelLink: channelLink,
       });
     } else {

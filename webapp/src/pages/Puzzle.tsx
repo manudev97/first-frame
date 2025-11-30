@@ -20,18 +20,25 @@ function Puzzle() {
   const [time, setTime] = useState(0);
   const [showPreview, setShowPreview] = useState(true); // Mostrar vista previa por defecto
   const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null);
+  const [derivativeIpId, setDerivativeIpId] = useState<string | null>(null);
+  const [derivativeTxHash, setDerivativeTxHash] = useState<string | null>(null);
 
   useEffect(() => {
     loadPuzzle();
+  }, []);
+
+  // Timer separado que solo inicia cuando el puzzle está cargado
+  useEffect(() => {
+    if (!puzzle || solved) {
+      return;
+    }
     
     const interval = setInterval(() => {
-      if (!solved) {
-        setTime((t) => t + 1);
-      }
+      setTime((t) => t + 1);
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [solved]);
+  }, [puzzle, solved]);
 
   const loadPuzzle = async () => {
     try {
@@ -110,29 +117,43 @@ function Puzzle() {
         posterUrl: posterUrl,
       });
       
+      // IMPORTANTE: Solo mostrar notificación si el puzzle está realmente resuelto
       if (response.data.success && response.data.accessGranted) {
         setSolved(true);
         setShowPreview(false);
         
-        // Mostrar mensaje de éxito más atractivo con link al canal
-        let successMessage = `🎉 ¡Puzzle completado en ${formatTime(time)}!\n\n`;
-        successMessage += `✅ Acceso otorgado al canal privado\n`;
-        if (response.data.derivativeIpId) {
-          successMessage += `📸 Póster registrado como IP derivado\n`;
-        }
-        if (response.data.channelLink) {
-          successMessage += `\n🔗 Accede al canal: ${response.data.channelLink}`;
-          // También mostrar botón para abrir el canal
-          const openChannel = window.confirm(successMessage + '\n\n¿Deseas abrir el canal ahora?');
+        // Guardar datos del IP derivado y canal para mostrar en la UI
+        const derivativeIpIdValue = response.data.derivativeIpId;
+        const derivativeTxHashValue = response.data.derivativeTxHash;
+        const channelLink = response.data.channelLink;
+        
+        setDerivativeIpId(derivativeIpIdValue);
+        setDerivativeTxHash(derivativeTxHashValue);
+        
+        // Mostrar confirmación y abrir el canal si el usuario acepta
+        // Usar Telegram WebApp API para abrir el link en Telegram
+        if (channelLink) {
+          const openChannel = window.confirm(
+            `🎉 ¡Puzzle completado en ${formatTime(time)}!\n\n` +
+            `✅ Acceso otorgado al canal privado\n` +
+            (derivativeIpIdValue ? `📸 Póster registrado como IP derivado\n` : '') +
+            `\n¿Deseas abrir el canal ahora?`
+          );
+          
           if (openChannel) {
-            window.open(response.data.channelLink, '_blank');
+            // Usar Telegram WebApp API para abrir el link en Telegram
+            if (window.Telegram?.WebApp?.openLink) {
+              window.Telegram.WebApp.openLink(channelLink);
+            } else {
+              // Fallback si no está en Telegram
+              window.open(channelLink, '_blank');
+            }
           }
-        } else {
-          alert(successMessage);
         }
       } else {
-        // Feedback visual sin alert intrusivo
+        // Feedback visual sin alert intrusivo - NO mostrar notificación si no está resuelto
         console.log('Solución incorrecta, continuar intentando...');
+        // NO mostrar ninguna notificación si el puzzle no está resuelto
       }
     } catch (error: any) {
       console.error('Error validando solución:', error);
@@ -214,28 +235,77 @@ function Puzzle() {
             <h3>¡Felicidades!</h3>
             <p className="solved-time">Completado en {formatTime(time)}</p>
             <p className="solved-message">Tu acceso al canal privado ha sido otorgado</p>
-            <p className="solved-message">El póster ha sido registrado como IP en Story Protocol</p>
+            {derivativeIpId && (
+              <div style={{ 
+                marginTop: '20px', 
+                padding: '15px', 
+                backgroundColor: 'rgba(139, 92, 246, 0.1)', 
+                borderRadius: '8px' 
+              }}>
+                <p className="solved-message" style={{ marginBottom: '10px' }}>
+                  📸 Póster registrado como IP derivado
+                </p>
+                {derivativeIpId && (
+                  <a 
+                    href={`https://aeneid.storyscan.io/token/${derivativeIpId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      color: '#A78BFA',
+                      textDecoration: 'underline',
+                      wordBreak: 'break-all',
+                      display: 'block',
+                      marginBottom: '10px',
+                      fontSize: '0.9rem'
+                    }}
+                  >
+                    Ver IP en Explorer: {derivativeIpId.substring(0, 20)}...
+                  </a>
+                )}
+                {derivativeTxHash && (
+                  <a 
+                    href={`https://aeneid.storyscan.io/tx/${derivativeTxHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      color: '#A78BFA',
+                      textDecoration: 'underline',
+                      wordBreak: 'break-all',
+                      display: 'block',
+                      fontSize: '0.85rem'
+                    }}
+                  >
+                    Ver Transacción: {derivativeTxHash.substring(0, 20)}...
+                  </a>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <div className="puzzle-board">
             <div className="puzzle-grid">
-              {pieces.map((piece) => (
-                <div
-                  key={piece.id}
-                  className={`puzzle-piece ${selectedPiece === piece.id ? 'selected' : ''} ${selectedPiece !== null && selectedPiece !== piece.id ? 'hoverable' : ''}`}
-                  onClick={() => handlePieceClick(piece.id)}
-                  style={{
-                    backgroundImage: `url(${piece.imageData})`,
-                    backgroundSize: '200% 200%', // 2x2 = 200%
-                    backgroundPosition: `${-(piece.id % 2) * 50}% ${-Math.floor(piece.id / 2) * 50}%`,
-                  }}
-                >
-                  {selectedPiece === piece.id && (
-                    <div className="piece-selected-indicator">✓</div>
-                  )}
-                  <div className="piece-number">{piece.id + 1}</div>
-                </div>
-              ))}
+              {pieces.map((piece, index) => {
+                // Cada pieza tiene su propia imageData (imagen completa de esa pieza)
+                // No necesitamos backgroundPosition porque cada pieza es una imagen individual
+                return (
+                  <div
+                    key={piece.id}
+                    className={`puzzle-piece ${selectedPiece === piece.id ? 'selected' : ''} ${selectedPiece !== null && selectedPiece !== piece.id ? 'hoverable' : ''}`}
+                    onClick={() => handlePieceClick(piece.id)}
+                    style={{
+                      backgroundImage: `url(${piece.imageData})`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      backgroundRepeat: 'no-repeat',
+                    }}
+                  >
+                    {selectedPiece === piece.id && (
+                      <div className="piece-selected-indicator">✓</div>
+                    )}
+                    <div className="piece-number">{piece.id + 1}</div>
+                  </div>
+                );
+              })}
             </div>
             <p className="puzzle-hint">
               💡 <strong>Tip:</strong> Haz clic en dos piezas para intercambiarlas. Usa la vista previa como referencia.
