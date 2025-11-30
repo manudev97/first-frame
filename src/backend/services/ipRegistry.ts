@@ -50,18 +50,23 @@ export async function saveRegisteredIP(ip: RegisteredIP): Promise<void> {
     await ensureDataDir();
     const ips = await loadRegisteredIPs();
     
-    // Evitar duplicados
-    if (ips.find((existing) => existing.ipId === ip.ipId)) {
-      console.warn(`IP ${ip.ipId} ya está registrado`);
-      return;
+    // Evitar duplicados por IP ID
+    const existingIndex = ips.findIndex((existing) => existing.ipId.toLowerCase() === ip.ipId.toLowerCase());
+    if (existingIndex !== -1) {
+      console.warn(`⚠️  IP ${ip.ipId} ya está registrado, actualizando...`);
+      // Actualizar el IP existente con nueva información
+      ips[existingIndex] = { ...ips[existingIndex], ...ip };
+    } else {
+      // Agregar nuevo IP
+      ips.push(ip);
     }
     
-    ips.push(ip);
     await fs.writeFile(REGISTRY_FILE, JSON.stringify(ips, null, 2), 'utf-8');
-    console.log(`✅ IP registrado en marketplace: ${ip.ipId} - ${ip.title}`);
+    console.log(`✅ IP guardado en marketplace: ${ip.ipId} - ${ip.title} (uploader: ${ip.uploader || 'N/A'})`);
   } catch (error) {
-    console.error('Error guardando IP registrado:', error);
+    console.error('❌ Error guardando IP registrado:', error);
     // No lanzar error - el registro puede continuar aunque falle el guardado
+    throw error; // Pero lanzar para que el backend sepa que falló
   }
 }
 
@@ -83,5 +88,15 @@ export async function searchIPs(query: string): Promise<RegisteredIP[]> {
 export async function getIPById(ipId: string): Promise<RegisteredIP | null> {
   const ips = await loadRegisteredIPs();
   return ips.find((ip) => ip.ipId.toLowerCase() === ipId.toLowerCase()) || null;
+}
+
+// Obtener IPs registrados por un usuario específico
+export async function getIPsByUploader(uploader: string): Promise<RegisteredIP[]> {
+  const ips = await loadRegisteredIPs();
+  // Comparación case-insensitive y permitir coincidencias parciales
+  return ips.filter((ip) => {
+    if (!ip.uploader) return false;
+    return ip.uploader.toLowerCase() === uploader.toLowerCase();
+  });
 }
 

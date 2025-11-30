@@ -1,16 +1,18 @@
 import { Router } from 'express';
 import { StoryClient } from '@story-protocol/core-sdk';
 import { createStoryClient } from '../services/storyClient';
+import { createStoryClientForUser } from '../services/storyClientUser';
 import { privateKeyToAccount } from 'viem/accounts';
 import { saveRegisteredIP } from '../services/ipRegistry';
 import { getIPDetailsFromTransaction } from '../services/txParser';
+import { getStoryBalance, hasSufficientBalance } from '../services/balanceService';
 
 const router = Router();
 
 // Registrar IP Asset
 router.post('/register-ip', async (req, res) => {
   try {
-    const { metadata } = req.body;
+    const { metadata, userWalletAddress } = req.body;
     // NO recibir licenseTerms aquí - se registrarán después para evitar el error
     // LicenseAttachmentWorkflows_NoLicenseTermsData
     
@@ -27,19 +29,49 @@ router.post('/register-ip', async (req, res) => {
         error: 'STORY_SPG_NFT_CONTRACT no está configurado' 
       });
     }
+
+    // Si se proporciona userWalletAddress, usar la wallet del usuario
+    let client: StoryClient;
+    let recipient: `0x${string}`;
     
-    const client = await createStoryClient();
-    
-    // Obtener la dirección del recipient desde la private key
-    if (!process.env.STORY_PRIVATE_KEY) {
-      return res.status(500).json({ 
-        success: false, 
-        error: 'STORY_PRIVATE_KEY no está configurado' 
-      });
+    if (userWalletAddress && typeof userWalletAddress === 'string' && userWalletAddress.startsWith('0x')) {
+      // Validar que la wallet del usuario tenga suficiente balance
+      const userAddress = userWalletAddress as `0x${string}`;
+      const hasBalance = await hasSufficientBalance(userAddress, '0.001');
+      
+      if (!hasBalance) {
+        const balance = await getStoryBalance(userAddress);
+        return res.status(400).json({
+          success: false,
+          error: 'INSUFFICIENT_BALANCE',
+          message: `Tu wallet no tiene suficiente balance IP para registrar. Balance actual: ${parseFloat(balance).toFixed(2)} IP. Necesitas al menos 0.001 IP.`,
+          balance: balance,
+          requiredBalance: '0.001',
+          faucetUrl: 'https://cloud.google.com/application/web3/faucet/story/aeneid',
+        });
+      }
+
+      // Crear cliente con wallet del usuario como recipient
+      const { client: userClient, recipient: userRecipient } = await createStoryClientForUser(userAddress);
+      client = userClient;
+      recipient = userRecipient;
+      
+      console.log(`✅ Usando wallet del usuario: ${userAddress}`);
+    } else {
+      // Fallback: usar wallet del bot
+      if (!process.env.STORY_PRIVATE_KEY) {
+        return res.status(500).json({ 
+          success: false, 
+          error: 'STORY_PRIVATE_KEY no está configurado y no se proporcionó userWalletAddress' 
+        });
+      }
+      
+      client = await createStoryClient();
+      const account = privateKeyToAccount(process.env.STORY_PRIVATE_KEY as `0x${string}`);
+      recipient = account.address;
+      
+      console.log(`⚠️  Usando wallet del bot (fallback): ${recipient}`);
     }
-    
-    const account = privateKeyToAccount(process.env.STORY_PRIVATE_KEY as `0x${string}`);
-    const recipient = account.address;
     
     // Registrar IP Asset usando registerIpAsset (mint y register en una transacción)
     // IMPORTANTE: NO pasar licenseTermsData si está vacío para evitar el error

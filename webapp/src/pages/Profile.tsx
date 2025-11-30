@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import Navigation from '../components/Navigation';
 import { getTelegramUser } from '../utils/telegram';
+import { connectWallet, disconnectWallet, getSavedWallet, type WalletInfo } from '../services/walletService';
 import './Profile.css';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:3001/api');
@@ -19,9 +20,101 @@ interface WalletInfo {
   balance?: string;
 }
 
+interface IPAsset {
+  ipId: string;
+  tokenId?: string;
+  title: string;
+  year?: number;
+  posterUrl?: string;
+  description?: string;
+  txHash?: string;
+  createdAt: string;
+}
+
+function UserIPsList() {
+  const [userIPs, setUserIPs] = useState<IPAsset[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadUserIPs();
+  }, []);
+
+  const loadUserIPs = async () => {
+    try {
+      const user = getTelegramUser();
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      const uploaderId = `TelegramUser_${user.id}`;
+      const response = await axios.get(`${API_URL}/marketplace/user/${encodeURIComponent(uploaderId)}`);
+      
+      if (response.data.success) {
+        setUserIPs(response.data.items || []);
+      }
+    } catch (error) {
+      console.error('Error cargando IPs del usuario:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="loading">Cargando...</div>;
+  }
+
+  if (userIPs.length === 0) {
+    return (
+      <div className="empty-state">
+        <p>Aún no has registrado ningún IP</p>
+        <a href="/upload" className="btn-link">
+          📤 Registrar mi primer IP
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div className="user-ips-grid">
+      {userIPs.map((ip) => (
+        <div key={ip.ipId} className="user-ip-card">
+          {ip.posterUrl && (
+            <img src={ip.posterUrl} alt={ip.title} className="user-ip-poster" />
+          )}
+          <div className="user-ip-info">
+            <h4>{ip.title}</h4>
+            {ip.year && <p className="user-ip-year">{ip.year}</p>}
+            <div className="user-ip-actions">
+              <a 
+                href={`https://aeneid.storyscan.io/token/${ip.ipId}${ip.tokenId ? `/instance/${ip.tokenId}` : ''}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="user-ip-link"
+              >
+                🔗 Ver en Explorer
+              </a>
+              {(ip as any).txHash && (
+                <a 
+                  href={`https://aeneid.storyscan.io/tx/${(ip as any).txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="user-ip-link"
+                >
+                  📋 Ver TX
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Profile() {
   const [telegramUser, setTelegramUser] = useState<TelegramUser | null>(null);
-  const [wallet, setWallet] = useState<WalletInfo>({ connected: false });
+  const [wallet, setWallet] = useState<WalletInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState({
     ipsRegistered: 0,
@@ -36,18 +129,68 @@ function Profile() {
       setTelegramUser(user);
     }
 
+    // Cargar wallet guardado
+    const savedWallet = getSavedWallet();
+    if (savedWallet) {
+      setWallet(savedWallet);
+      // Cargar balance de Story Testnet
+      loadStoryBalance(savedWallet.address);
+    }
+
     loadUserStats();
     loadHallidayAssets();
   }, []);
 
+  const loadStoryBalance = async (address: string) => {
+    try {
+      const response = await axios.get(`${API_URL}/balance/${address}`);
+      if (response.data.success) {
+        setWallet((prev) => prev ? { ...prev, balance: response.data.balance } : null);
+      }
+    } catch (error) {
+      console.error('Error cargando balance de Story:', error);
+    }
+  };
+
   const loadUserStats = async () => {
     try {
-      // TODO: Implementar endpoint para obtener estadísticas del usuario
-      setStats({
-        ipsRegistered: 0,
-        puzzlesCompleted: 0,
-        royaltiesPending: '0',
-      });
+      const user = getTelegramUser();
+      if (!user) {
+        return;
+      }
+
+      // Obtener IPs registrados por el usuario
+      const uploaderId = `TelegramUser_${user.id}`;
+      try {
+        const userIPsResponse = await axios.get(`${API_URL}/marketplace/user/${encodeURIComponent(uploaderId)}`);
+        
+        if (userIPsResponse.data.success) {
+          const userIPs = userIPsResponse.data.items || [];
+          setStats({
+            ipsRegistered: userIPs.length,
+            puzzlesCompleted: 0, // TODO: Implementar tracking de puzzles completados
+            royaltiesPending: '0', // TODO: Implementar cálculo de regalías
+          });
+        }
+      } catch (error: any) {
+        // Si el endpoint no existe o falla, intentar obtener todos los IPs y filtrar
+        console.warn('Error obteniendo IPs del usuario, intentando método alternativo:', error.message);
+        try {
+          const allIPsResponse = await axios.get(`${API_URL}/marketplace/list`);
+          if (allIPsResponse.data.success && allIPsResponse.data.items) {
+            const userIPs = allIPsResponse.data.items.filter((ip: any) => 
+              ip.uploader && ip.uploader.toLowerCase() === uploaderId.toLowerCase()
+            );
+            setStats({
+              ipsRegistered: userIPs.length,
+              puzzlesCompleted: 0,
+              royaltiesPending: '0',
+            });
+          }
+        } catch (fallbackError) {
+          console.error('Error en método alternativo:', fallbackError);
+        }
+      }
     } catch (error) {
       console.error('Error cargando estadísticas:', error);
     }
@@ -65,57 +208,11 @@ function Profile() {
     }
   };
 
-  const connectWallet = async () => {
+  const handleConnectWallet = async () => {
     setLoading(true);
     try {
-      const user = getTelegramUser();
-      if (!user) {
-        alert('❌ No se pudo obtener información de Telegram');
-        setLoading(false);
-        return;
-      }
-
-      // Verificar conexión con Halliday API
-      try {
-        const assetsResponse = await axios.get(`${API_URL}/halliday/assets`);
-        if (!assetsResponse.data.success) {
-          throw new Error('No se pudo conectar con Halliday API');
-        }
-
-        // Generar una dirección de wallet determinística basada en el user ID de Telegram
-        // En producción real, esto debería usar Halliday Smart Wallet o similar
-        const userId = user.id.toString();
-        const walletSeed = `telegram_${userId}_firstframe`;
-        
-        // Hash simple para generar dirección (en producción usar función criptográfica apropiada)
-        const addressHash = Array.from(walletSeed).reduce((acc, char) => {
-          return ((acc << 5) - acc) + char.charCodeAt(0) | 0;
-        }, 0);
-        
-        // Generar dirección Ethereum válida
-        const address = `0x${Math.abs(addressHash).toString(16).padStart(40, '0').slice(0, 40)}`;
-        
-        setWallet({
-          address: address,
-          connected: true,
-          balance: '0', // TODO: Obtener balance real desde blockchain
-        });
-        
-        console.log('✅ Wallet conectado:', address);
-      } catch (hallidayError: any) {
-        console.error('Error con Halliday API:', hallidayError);
-        
-        // Fallback: usar wallet simulado si Halliday no está disponible
-        const address = `0x${user.id.toString(16).padStart(40, '0')}`;
-        setWallet({
-          address: address,
-          connected: true,
-          balance: '0',
-        });
-        
-        alert('⚠️  Wallet conectado en modo simulado.\n\n' +
-              'En producción, esto usará Halliday para crear un wallet real.');
-      }
+      const walletInfo = await connectWallet();
+      setWallet(walletInfo);
     } catch (error: any) {
       console.error('Error conectando wallet:', error);
       alert('Error: ' + (error.message || 'No se pudo conectar el wallet'));
@@ -124,9 +221,15 @@ function Profile() {
     }
   };
 
+  const handleDisconnectWallet = () => {
+    disconnectWallet();
+    setWallet(null);
+  };
+
   const handleCreatePayment = async () => {
-    if (!wallet.connected || !wallet.address) {
+    if (!wallet || !wallet.connected || !wallet.address) {
       alert('❌ Primero debes conectar tu wallet');
+      handleConnectWallet();
       return;
     }
 
@@ -241,25 +344,69 @@ function Profile() {
           <div className="card-header">
             <h3>💼 Wallet</h3>
           </div>
-          {wallet.connected ? (
+          {wallet && wallet.connected ? (
             <div className="wallet-connected">
               <div className="wallet-address">
                 <span className="label">Dirección:</span>
                 <code className="address">{wallet.address}</code>
+                <button 
+                  className="btn-copy-address"
+                  onClick={() => {
+                    navigator.clipboard.writeText(wallet.address);
+                    alert('✅ Dirección copiada al portapapeles');
+                  }}
+                  title="Copiar dirección"
+                >
+                  📋
+                </button>
               </div>
-              {wallet.balance !== undefined && (
-                <div className="wallet-balance">
-                  <span className="label">Balance:</span>
-                  <span className="balance">{wallet.balance} ETH</span>
-                </div>
-              )}
-              <button 
-                className="btn-wallet-action"
-                onClick={handleCreatePayment}
-                disabled={loading}
-              >
-                {loading ? 'Procesando...' : '💳 Crear Pago con Halliday'}
-              </button>
+              <div className="wallet-balance">
+                <span className="label">IP Balance (Story Testnet):</span>
+                <span className="balance">
+                  {wallet.balance !== undefined ? `${parseFloat(wallet.balance).toFixed(2)} IP` : 'Cargando...'}
+                </span>
+                {wallet.balance !== undefined && parseFloat(wallet.balance) < 0.001 && (
+                  <div style={{ marginTop: '10px' }}>
+                    <a
+                      href="https://cloud.google.com/application/web3/faucet/story/aeneid"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-faucet"
+                      style={{
+                        display: 'inline-block',
+                        padding: '0.5rem 1rem',
+                        background: 'linear-gradient(135deg, #4285F4 0%, #34A853 100%)',
+                        color: 'white',
+                        textDecoration: 'none',
+                        borderRadius: '8px',
+                        fontSize: '0.85rem',
+                        fontWeight: 600,
+                        marginTop: '0.5rem',
+                      }}
+                    >
+                      💧 Obtener Fondos del Faucet
+                    </a>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
+                      Necesitas fondos para registrar IPs en Story Testnet
+                    </p>
+                  </div>
+                )}
+              </div>
+              <div className="wallet-actions">
+                <button 
+                  className="btn-wallet-action"
+                  onClick={handleCreatePayment}
+                  disabled={loading}
+                >
+                  {loading ? 'Procesando...' : '💳 Crear Pago con Halliday'}
+                </button>
+                <button 
+                  className="btn-wallet-disconnect"
+                  onClick={handleDisconnectWallet}
+                >
+                  Desconectar
+                </button>
+              </div>
               <p className="wallet-note">
                 💡 Usa Halliday para convertir USD a cripto sin fricción
               </p>
@@ -269,7 +416,7 @@ function Profile() {
               <p>Conecta tu wallet para gestionar pagos y regalías</p>
               <button 
                 className="btn-connect-wallet"
-                onClick={connectWallet}
+                onClick={handleConnectWallet}
                 disabled={loading}
               >
                 {loading ? 'Conectando...' : '🔗 Conectar Wallet (Halliday)'}
@@ -302,13 +449,8 @@ function Profile() {
 
         {/* Mis IPs */}
         <div className="profile-section">
-          <h3>📚 Mis IPs</h3>
-          <div className="empty-state">
-            <p>Aún no has registrado ningún IP</p>
-            <a href="/upload" className="btn-link">
-              📤 Registrar mi primer IP
-            </a>
-          </div>
+          <h3>📚 Mis IPs ({stats.ipsRegistered})</h3>
+          <UserIPsList />
         </div>
 
         {/* Assets de Halliday (debug) */}

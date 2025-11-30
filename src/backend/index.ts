@@ -8,6 +8,8 @@ import { ipRouter } from './routes/ip';
 import { marketplaceRouter } from './routes/marketplace';
 import { hallidayRouter } from './routes/halliday';
 import { uploadRouter } from './routes/upload';
+import { walletRouter } from './routes/wallet';
+import { balanceRouter } from './routes/balance';
 
 dotenv.config();
 
@@ -46,6 +48,8 @@ app.use('/api/ip', ipRouter);
 app.use('/api/marketplace', marketplaceRouter);
 app.use('/api/halliday', hallidayRouter);
 app.use('/api/upload', uploadRouter);
+app.use('/api/wallet', walletRouter);
+app.use('/api/balance', balanceRouter);
 
 // Health check
 app.get('/health', (req, res) => {

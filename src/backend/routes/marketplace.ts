@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { loadRegisteredIPs, searchIPs, getIPById } from '../services/ipRegistry';
+import { loadRegisteredIPs, searchIPs, getIPById, getIPsByUploader } from '../services/ipRegistry';
 
 const router = Router();
 
@@ -77,6 +77,31 @@ router.get('/:ipId', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Error obteniendo IP:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Obtener IPs registrados por un usuario
+router.get('/user/:uploader', async (req, res) => {
+  try {
+    const { uploader } = req.params;
+    
+    if (!uploader) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'uploader es requerido' 
+      });
+    }
+
+    const userIPs = await getIPsByUploader(uploader);
+    
+    res.json({
+      success: true,
+      items: userIPs,
+      count: userIPs.length,
+    });
+  } catch (error: any) {
+    console.error('Error obteniendo IPs del usuario:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

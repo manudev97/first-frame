@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import Navigation from '../components/Navigation';
 import { getTelegramUser } from '../utils/telegram';
+import { getSavedWallet } from '../services/walletService';
 import './Upload.css';
 
 // Usar proxy de Vite en desarrollo, o URL configurada en producción
@@ -102,6 +103,15 @@ function Upload() {
       // 3. Registrar IP en Story Protocol SIN términos de licencia primero
       // (evita el error LicenseAttachmentWorkflows_NoLicenseTermsData)
       // IMPORTANTE: Usar nftMetadataUri separado que incluye el póster en formato OpenSea
+      const telegramUser = getTelegramUser();
+      const uploaderId = telegramUser ? `TelegramUser_${telegramUser.id}` : 'Anonymous';
+      
+      // Obtener wallet del usuario para pagar el fee
+      const savedWallet = getSavedWallet();
+      if (!savedWallet || !savedWallet.connected || !savedWallet.address) {
+        throw new Error('Debes conectar tu wallet primero para registrar IPs. Ve a tu perfil y conecta tu wallet.');
+      }
+
       const storyResponse = await axios.post(`${API_URL}/story/register-ip`, {
         metadata: {
           uri: metadataResponse.data.metadataUri, // IP Metadata
@@ -115,6 +125,8 @@ function Upload() {
         posterUrl: movieData?.poster || movieData?.Poster || metadataResponse.data.posterUrl,
         description: movieData?.plot || movieData?.Plot,
         imdbId: movieData?.imdbId || movieData?.imdbID,
+        uploader: uploaderId, // CRÍTICO: Enviar uploader para que se muestre en el perfil
+        userWalletAddress: savedWallet.address, // CRÍTICO: Wallet del usuario para pagar fees
         // NO pasar licenseTerms - se registrarán después
       });
 
@@ -220,14 +232,32 @@ function Upload() {
         stack: error.stack,
       });
       
-      const errorMsg = error.response?.data?.error || error.message || 'Error desconocido';
+      let errorMsg = error.response?.data?.error || error.message || 'Error desconocido';
+      
+      // Manejar error de balance insuficiente
+      if (error.response?.data?.error === 'INSUFFICIENT_BALANCE') {
+        const balance = error.response.data.balance || '0';
+        const requiredBalance = error.response.data.requiredBalance || '0.001';
+        const faucetUrl = error.response.data.faucetUrl || 'https://cloud.google.com/application/web3/faucet/story/aeneid';
+        
+        errorMsg = `❌ Balance insuficiente\n\n` +
+          `Tu balance actual: ${parseFloat(balance).toFixed(2)} IP\n` +
+          `Balance requerido: ${requiredBalance} IP\n\n` +
+          `Necesitas obtener fondos del faucet para registrar IPs.\n\n` +
+          `¿Deseas abrir el faucet ahora?`;
+        
+        const openFaucet = window.confirm(errorMsg);
+        if (openFaucet) {
+          window.open(faucetUrl, '_blank');
+        }
+      } else {
+        // Mostrar error normal
+        alert('Error: ' + errorMsg);
+      }
       
       // Asegurar que loading se desactive
       setLoading(false);
       setSuccess(false);
-      
-      // Mostrar error al usuario
-      alert('Error: ' + errorMsg);
     } finally {
       setLoading(false);
       console.log('✅ Proceso de registro finalizado (loading=false)');
