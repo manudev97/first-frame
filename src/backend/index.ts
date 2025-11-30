@@ -10,6 +10,7 @@ import { hallidayRouter } from './routes/halliday';
 import { uploadRouter } from './routes/upload';
 import { walletRouter } from './routes/wallet';
 import { balanceRouter } from './routes/balance';
+import { userRouter } from './routes/user';
 
 dotenv.config();
 
@@ -50,6 +51,7 @@ app.use('/api/halliday', hallidayRouter);
 app.use('/api/upload', uploadRouter);
 app.use('/api/wallet', walletRouter);
 app.use('/api/balance', balanceRouter);
+app.use('/api/user', userRouter);
 
 // Health check
 app.get('/health', (req, res) => {

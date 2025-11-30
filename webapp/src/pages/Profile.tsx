@@ -213,6 +213,11 @@ function Profile() {
     try {
       const walletInfo = await connectWallet();
       setWallet(walletInfo);
+      
+      // Cargar balance inmediatamente después de conectar
+      if (walletInfo.address) {
+        await loadStoryBalance(walletInfo.address);
+      }
     } catch (error: any) {
       console.error('Error conectando wallet:', error);
       alert('Error: ' + (error.message || 'No se pudo conectar el wallet'));

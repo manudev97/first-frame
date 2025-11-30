@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import axios from 'axios';
 import Navigation from '../components/Navigation';
 import { connectWallet, disconnectWallet, getSavedWallet, type WalletInfo } from '../services/walletService';
 import './Home.css';
+
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:3001/api');
 
 function Home() {
   const [wallet, setWallet] = useState<WalletInfo | null>(null);
@@ -21,6 +24,19 @@ function Home() {
     try {
       const walletInfo = await connectWallet();
       setWallet(walletInfo);
+      
+      // Cargar balance inmediatamente después de conectar
+      if (walletInfo.address) {
+        try {
+          const response = await axios.get(`${API_URL}/balance/${walletInfo.address}`);
+          if (response.data.success) {
+            setWallet((prev) => prev ? { ...prev, balance: response.data.balance } : null);
+          }
+        } catch (balanceError) {
+          console.warn('No se pudo cargar el balance inicial:', balanceError);
+          // No es crítico, el balance se puede cargar después
+        }
+      }
     } catch (error: any) {
       console.error('Error conectando wallet:', error);
       alert('Error: ' + (error.message || 'No se pudo conectar el wallet'));

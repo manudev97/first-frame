@@ -63,9 +63,17 @@ async function generateDeterministicWallet(telegramUserId: number): Promise<stri
 }
 
 /**
+ * Obtiene la clave de localStorage única para un usuario de Telegram
+ */
+function getWalletStorageKey(telegramUserId: number): string {
+  return `firstframe_wallet_${telegramUserId}`;
+}
+
+/**
  * Conecta el wallet usando Halliday API
  * Verifica que Halliday esté disponible y genera una wallet determinística
  * La wallet es determinística basada en el ID de Telegram del usuario
+ * IMPORTANTE: Cada usuario tiene su propia wallet almacenada con una clave única
  */
 export async function connectWallet(): Promise<WalletInfo> {
   const user = getTelegramUser();
@@ -97,36 +105,77 @@ export async function connectWallet(): Promise<WalletInfo> {
     hallidayVerified,
   };
 
-  // Guardar en localStorage
-  localStorage.setItem('firstframe_wallet', JSON.stringify(walletInfo));
+  // Guardar en localStorage con clave única por usuario
+  const storageKey = getWalletStorageKey(user.id);
+  localStorage.setItem(storageKey, JSON.stringify(walletInfo));
   
   console.log('✅ Wallet conectado:', {
     address,
     telegramUserId: user.id,
     hallidayVerified,
+    storageKey,
   });
   
   return walletInfo;
 }
 
 /**
- * Desconecta el wallet
+ * Desconecta el wallet del usuario actual
  */
 export function disconnectWallet(): void {
-  localStorage.removeItem('firstframe_wallet');
+  const user = getTelegramUser();
+  if (user) {
+    const storageKey = getWalletStorageKey(user.id);
+    localStorage.removeItem(storageKey);
+    console.log(`✅ Wallet desconectado para usuario ${user.id}`);
+  } else {
+    // Fallback: limpiar todas las wallets si no hay usuario
+    // Esto puede pasar si se llama fuera del contexto de Telegram
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('firstframe_wallet_')) {
+        localStorage.removeItem(key);
+      }
+    });
+    // También limpiar la clave antigua por compatibilidad
+    localStorage.removeItem('firstframe_wallet');
+  }
 }
 
 /**
- * Obtiene el wallet guardado desde localStorage
+ * Obtiene el wallet guardado desde localStorage para el usuario actual
+ * IMPORTANTE: Solo devuelve la wallet del usuario actual de Telegram
  */
 export function getSavedWallet(): WalletInfo | null {
   try {
-    const savedWallet = localStorage.getItem('firstframe_wallet');
+    const user = getTelegramUser();
+    if (!user) {
+      // Si no hay usuario de Telegram, no devolver wallet
+      // Esto previene que se muestre la wallet de otro usuario
+      return null;
+    }
+
+    // Usar clave única por usuario
+    const storageKey = getWalletStorageKey(user.id);
+    const savedWallet = localStorage.getItem(storageKey);
+    
     if (savedWallet) {
       const walletData = JSON.parse(savedWallet);
-      if (walletData.address && walletData.connected) {
+      // Verificar que la wallet pertenece al usuario actual
+      if (walletData.address && walletData.connected && walletData.telegramUserId === user.id) {
         return walletData as WalletInfo;
+      } else {
+        // Si la wallet no coincide con el usuario actual, limpiarla
+        console.warn(`⚠️  Wallet encontrada pero no coincide con usuario actual. Limpiando...`);
+        localStorage.removeItem(storageKey);
+        return null;
       }
+    }
+    
+    // Limpiar clave antigua por compatibilidad si existe
+    const oldWallet = localStorage.getItem('firstframe_wallet');
+    if (oldWallet) {
+      console.warn('⚠️  Encontrada wallet con clave antigua. Limpiando...');
+      localStorage.removeItem('firstframe_wallet');
     }
   } catch (e) {
     console.error('Error cargando wallet guardado:', e);
@@ -167,6 +216,11 @@ export async function updateWalletBalance(): Promise<WalletInfo | null> {
     return null;
   }
 
+  const user = getTelegramUser();
+  if (!user) {
+    return null;
+  }
+
   try {
     const balance = await getStoryBalance(wallet.address);
     const updatedWallet: WalletInfo = {
@@ -174,7 +228,9 @@ export async function updateWalletBalance(): Promise<WalletInfo | null> {
       balance,
     };
     
-    localStorage.setItem('firstframe_wallet', JSON.stringify(updatedWallet));
+    // Guardar con clave única por usuario
+    const storageKey = getWalletStorageKey(user.id);
+    localStorage.setItem(storageKey, JSON.stringify(updatedWallet));
     return updatedWallet;
   } catch (error) {
     console.error('Error actualizando balance:', error);

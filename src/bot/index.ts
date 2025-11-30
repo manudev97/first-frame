@@ -1,6 +1,7 @@
 import { Telegraf, Context } from 'telegraf';
 import { message } from 'telegraf/filters';
 import dotenv from 'dotenv';
+import axios from 'axios';
 import { setBotInstance } from '../backend/routes/upload';
 
 dotenv.config();
@@ -106,15 +107,36 @@ bot.command('profile', async (ctx: Context) => {
       ]]
     };
   }
+
+  // Obtener estadísticas reales del usuario
+  // Usar la función directamente en lugar de HTTP para evitar problemas de conexión
+  let statsMessage = `👤 Tu Perfil\n\nID: ${userId}\n`;
   
-  await ctx.reply(
-    '👤 Tu Perfil\n\n' +
-    `ID: ${userId}\n` +
-    'IPs Registrados: 0\n' +
-    'Rompecabezas Completados: 0\n' +
-    'Regalías Pendientes: 0 $IP',
-    replyOptions
-  );
+  try {
+    // Importar la función directamente para evitar problemas de conexión HTTP
+    const { getIPsByUploader } = await import('../backend/services/ipRegistry');
+    const uploaderId = `TelegramUser_${userId}`;
+    const userIPs = await getIPsByUploader(uploaderId);
+    
+    const stats = {
+      ipsRegistered: userIPs.length,
+      puzzlesCompleted: 0, // TODO: Implementar tracking
+      royaltiesPending: '0', // TODO: Implementar cálculo
+    };
+    
+    statsMessage += `IPs Registrados: ${stats.ipsRegistered}\n`;
+    statsMessage += `Rompecabezas Completados: ${stats.puzzlesCompleted}\n`;
+    statsMessage += `Regalías Pendientes: ${stats.royaltiesPending} IP`;
+  } catch (error: any) {
+    console.error('Error obteniendo estadísticas del usuario:', error);
+    // Fallback si falla
+    statsMessage += 'IPs Registrados: 0\n';
+    statsMessage += 'Rompecabezas Completados: 0\n';
+    statsMessage += 'Regalías Pendientes: 0 IP';
+    statsMessage += '\n\n⚠️ No se pudieron cargar las estadísticas completas';
+  }
+  
+  await ctx.reply(statsMessage, replyOptions);
 });
 
 bot.command('claim', async (ctx: Context) => {
