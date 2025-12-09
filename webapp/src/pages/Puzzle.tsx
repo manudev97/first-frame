@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import Navigation from '../components/Navigation';
+import { getTelegramUser } from '../utils/telegram';
 import './Puzzle.css';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:3001/api');
@@ -18,6 +19,7 @@ function Puzzle() {
   const [selectedPiece, setSelectedPiece] = useState<number | null>(null);
   const [solved, setSolved] = useState(false);
   const [time, setTime] = useState(0);
+  const [timerStarted, setTimerStarted] = useState(false);
   const [showPreview, setShowPreview] = useState(true); // Mostrar vista previa por defecto
   const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null);
   const [derivativeIpId, setDerivativeIpId] = useState<string | null>(null);
@@ -27,18 +29,34 @@ function Puzzle() {
     loadPuzzle();
   }, []);
 
-  // Timer separado que solo inicia cuando el puzzle está cargado
+  // Timer que solo inicia cuando el puzzle está cargado Y las piezas están listas
   useEffect(() => {
-    if (!puzzle || solved) {
+    if (!puzzle || !pieces.length || solved) {
+      // Si el puzzle está resuelto, detener el timer
+      if (solved) {
+        return;
+      }
       return;
     }
     
+    // Iniciar timer solo cuando el puzzle está completamente listo
+    if (!timerStarted) {
+      setTimerStarted(true);
+      setTime(0); // Reiniciar a 0 cuando inicia
+    }
+    
     const interval = setInterval(() => {
-      setTime((t) => t + 1);
+      setTime((t) => {
+        // No incrementar si el puzzle está resuelto
+        if (solved) {
+          return t;
+        }
+        return t + 1;
+      });
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [puzzle, solved]);
+  }, [puzzle, pieces, solved, timerStarted]);
 
   const loadPuzzle = async () => {
     try {
@@ -109,13 +127,34 @@ function Puzzle() {
     const ipId = urlParams.get('ipId');
     const posterUrl = urlParams.get('poster');
     
+    // Obtener telegramUserId
+    const telegramUser = getTelegramUser();
+    const telegramUserId = telegramUser?.id;
+    
+    // IMPORTANTE: Capturar el tiempo actual antes de enviar la validación
+    // Esto asegura que el tiempo se capture correctamente incluso si el timer se detiene
+    const currentTime = time;
+    console.log(`⏱️  Tiempo del puzzle capturado: ${currentTime} segundos`);
+    
     try {
       const response = await axios.post(`${API_URL}/puzzle/validate`, {
         puzzleId: puzzle.puzzleId,
         solution,
         ipId: ipId,
         posterUrl: posterUrl,
+        telegramUserId: telegramUserId, // Enviar telegramUserId al backend
+        puzzleTimeSeconds: currentTime, // Enviar tiempo actual del puzzle
       });
+      
+      // Verificar si hay regalías pendientes
+      if (response.data.hasPendingRoyalties) {
+        alert(
+          `⚠️ Tienes ${response.data.pendingCount} regalía${response.data.pendingCount > 1 ? 's' : ''} pendiente${response.data.pendingCount > 1 ? 's' : ''}.\n\n` +
+          `Debes pagar tus regalías antes de resolver más puzzles.\n\n` +
+          `💳 Usa el comando /profile en el bot para pagar tus regalías pendientes.`
+        );
+        return;
+      }
       
       // IMPORTANTE: Solo mostrar notificación si el puzzle está realmente resuelto
       if (response.data.success && response.data.accessGranted) {
@@ -130,26 +169,25 @@ function Puzzle() {
         setDerivativeIpId(derivativeIpIdValue);
         setDerivativeTxHash(derivativeTxHashValue);
         
-        // Mostrar confirmación y abrir el canal si el usuario acepta
-        // Usar Telegram WebApp API para abrir el link en Telegram
-        if (channelLink) {
-          const openChannel = window.confirm(
-            `🎉 ¡Puzzle completado en ${formatTime(time)}!\n\n` +
-            `✅ Acceso otorgado al canal privado\n` +
-            (derivativeIpIdValue ? `📸 Póster registrado como IP derivado\n` : '') +
-            `\n¿Deseas abrir el canal ahora?`
-          );
-          
-          if (openChannel) {
-            // Usar Telegram WebApp API para abrir el link en Telegram
-            if (window.Telegram?.WebApp?.openLink) {
-              window.Telegram.WebApp.openLink(channelLink);
-            } else {
-              // Fallback si no está en Telegram
-              window.open(channelLink, '_blank');
-            }
-          }
+        // NUEVA LÓGICA: Mostrar mensaje sobre video reenviado y regalía creada
+        let successMessage = `🎉 ¡Puzzle completado en ${formatTime(time)}!\n\n`;
+        
+        if (response.data.videoForwarded) {
+          successMessage += `✅ Video reenviado a tu chat privado\n`;
         }
+        
+        if (response.data.royaltyCreated) {
+          successMessage += `💰 Regalía pendiente creada (0.1 IP)\n`;
+          successMessage += `💳 Usa el comando /profile en el bot para pagar tus regalías\n\n`;
+        }
+        
+        if (derivativeIpIdValue) {
+          successMessage += `📸 Póster registrado como IP derivado\n`;
+        }
+        
+        successMessage += `\n⚠️ IMPORTANTE: Si tienes regalías pendientes, no podrás resolver más puzzles hasta pagarlas.`;
+        
+        alert(successMessage);
       } else {
         // Feedback visual sin alert intrusivo - NO mostrar notificación si no está resuelto
         console.log('Solución incorrecta, continuar intentando...');
@@ -257,6 +295,13 @@ function Puzzle() {
                       display: 'block',
                       marginBottom: '10px',
                       fontSize: '0.9rem'
+                    }}
+                    onClick={(e) => {
+                      // Verificar si el link es válido antes de abrir
+                      if (!derivativeIpId || !derivativeIpId.startsWith('0x') || derivativeIpId.length !== 42) {
+                        e.preventDefault();
+                        alert('⚠️ IP ID inválido. El link no se puede abrir.');
+                      }
                     }}
                   >
                     Ver IP en Explorer: {derivativeIpId.substring(0, 20)}...

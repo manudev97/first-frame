@@ -14,12 +14,16 @@ interface IPAsset {
   description?: string;
   imdbId?: string;
   createdAt: string;
+  channelMessageId?: string;
+  videoFileId?: string;
 }
 
 function Marketplace() {
-  const [items, setItems] = useState<IPAsset[]>([]);
+  const [disponible, setDisponible] = useState<IPAsset[]>([]);
+  const [noDisponible, setNoDisponible] = useState<IPAsset[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState<'disponible' | 'noDisponible'>('disponible');
 
   useEffect(() => {
     loadMarketplace();
@@ -30,8 +34,19 @@ function Marketplace() {
       setLoading(true);
       const response = await axios.get(`${API_URL}/marketplace/list`);
       
-      if (response.data.success && response.data.items) {
-        setItems(response.data.items);
+      if (response.data.success) {
+        // Usar las nuevas secciones si están disponibles
+        if (response.data.disponible && response.data.noDisponible) {
+          setDisponible(response.data.disponible);
+          setNoDisponible(response.data.noDisponible);
+        } else if (response.data.items) {
+          // Fallback: separar manualmente si la API no devuelve las secciones
+          const items = response.data.items as IPAsset[];
+          const disponibleItems = items.filter(item => item.channelMessageId || item.videoFileId);
+          const noDisponibleItems = items.filter(item => !item.channelMessageId && !item.videoFileId);
+          setDisponible(disponibleItems);
+          setNoDisponible(noDisponibleItems);
+        }
       }
     } catch (error: any) {
       console.error('Error cargando marketplace:', error);
@@ -52,7 +67,11 @@ function Marketplace() {
         params: { query: searchQuery },
       });
       if (response.data.success && response.data.results) {
-        setItems(response.data.results);
+        const results = response.data.results as IPAsset[];
+        const disponibleItems = results.filter(item => item.channelMessageId || item.videoFileId);
+        const noDisponibleItems = results.filter(item => !item.channelMessageId && !item.videoFileId);
+        setDisponible(disponibleItems);
+        setNoDisponible(noDisponibleItems);
       }
     } catch (error: any) {
       console.error('Error buscando:', error);
@@ -80,28 +99,64 @@ function Marketplace() {
         </button>
       </div>
 
+      {/* Tabs para Contenido Disponible y No Disponible */}
+      <div className="marketplace-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '2px solid var(--border-color)' }}>
+        <button
+          className={`tab-button ${activeTab === 'disponible' ? 'active' : ''}`}
+          onClick={() => setActiveTab('disponible')}
+          style={{
+            padding: '10px 20px',
+            border: 'none',
+            background: activeTab === 'disponible' ? 'var(--primary-color)' : 'transparent',
+            color: activeTab === 'disponible' ? 'white' : 'var(--text-primary)',
+            cursor: 'pointer',
+            borderBottom: activeTab === 'disponible' ? '3px solid var(--primary-color)' : '3px solid transparent',
+            fontWeight: activeTab === 'disponible' ? 'bold' : 'normal',
+          }}
+        >
+          ✅ Contenido Disponible ({disponible.length})
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'noDisponible' ? 'active' : ''}`}
+          onClick={() => setActiveTab('noDisponible')}
+          style={{
+            padding: '10px 20px',
+            border: 'none',
+            background: activeTab === 'noDisponible' ? 'var(--primary-color)' : 'transparent',
+            color: activeTab === 'noDisponible' ? 'white' : 'var(--text-primary)',
+            cursor: 'pointer',
+            borderBottom: activeTab === 'noDisponible' ? '3px solid var(--primary-color)' : '3px solid transparent',
+            fontWeight: activeTab === 'noDisponible' ? 'bold' : 'normal',
+          }}
+        >
+          ⏳ No Disponible ({noDisponible.length})
+        </button>
+      </div>
+
       {loading ? (
         <div className="loading">Cargando...</div>
-      ) : items.length === 0 ? (
+      ) : (activeTab === 'disponible' ? disponible : noDisponible).length === 0 ? (
         <div className="empty-state">
-          <p>📦 No hay IPs registrados aún</p>
-          <p>¡Sé el primero en registrar un video!</p>
-          <Link to="/upload" className="btn-primary">
-            📤 Registrar IP
-          </Link>
+          <p>📦 No hay {activeTab === 'disponible' ? 'contenido disponible' : 'contenido no disponible'} aún</p>
+          {activeTab === 'noDisponible' && (
+            <p>Estos IPs están registrados pero aún no tienen video en el canal</p>
+          )}
         </div>
       ) : (
         <div className="marketplace-grid">
-          {items.map((item) => (
+          {(activeTab === 'disponible' ? disponible : noDisponible).map((item) => (
             <Link
               key={item.ipId}
               to={`/puzzle?ipId=${item.ipId}&poster=${encodeURIComponent(item.posterUrl || '')}&title=${encodeURIComponent(item.title)}&year=${item.year || ''}`}
               className="marketplace-item"
             >
-              {item.posterUrl ? (
+              {item.posterUrl && item.posterUrl.trim() !== '' ? (
                 <img src={item.posterUrl} alt={item.title} className="item-poster" />
               ) : (
-                <div className="item-poster-placeholder">🎬</div>
+                <div className="item-poster-placeholder">
+                  <div className="placeholder-icon">🎬</div>
+                  <div className="placeholder-text">{item.title}</div>
+                </div>
               )}
               <div className="item-info">
                 <h3>{item.title}</h3>

@@ -17,6 +17,19 @@ export default defineConfig(({ mode }) => {
   
   return {
     plugins: [react()],
+    // Exponer variables de entorno del .env raíz al frontend
+    // Vite solo expone variables con prefijo VITE_ por seguridad
+    // Pero podemos mapear variables sin prefijo si es necesario
+    define: {
+      // Mapear DYNAMIC_ENVIRONMENT_ID a VITE_DYNAMIC_ENVIRONMENT_ID si existe
+      'import.meta.env.VITE_DYNAMIC_ENVIRONMENT_ID': JSON.stringify(
+        rootEnv.DYNAMIC_ENVIRONMENT_ID || rootEnv.VITE_DYNAMIC_ENVIRONMENT_ID || localEnv.VITE_DYNAMIC_ENVIRONMENT_ID || ''
+      ),
+      // Mapear STORY_RPC_URL a VITE_STORY_RPC_URL
+      'import.meta.env.VITE_STORY_RPC_URL': JSON.stringify(
+        rootEnv.STORY_RPC_URL || rootEnv.VITE_STORY_RPC_URL || localEnv.VITE_STORY_RPC_URL || 'https://aeneid.storyrpc.io'
+      ),
+    },
     server: {
       port: 5173,
       host: true, // Permite acceso desde cualquier host

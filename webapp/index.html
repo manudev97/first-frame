@@ -4,12 +4,52 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/logo.png" />
     <link rel="apple-touch-icon" href="/logo.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>FirstFrame - Protección de IP</title>
+    <!-- Telegram WebApp SDK - Cargar antes de React para mejor rendimiento -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Preload crítico para mejor rendimiento en móviles -->
+    <style>
+      /* Mostrar contenido básico inmediatamente mientras carga React */
+      body {
+        margin: 0;
+        padding: 0;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      }
+      #root {
+        min-height: 100vh;
+      }
+      /* Loading inicial simple - se remueve inmediatamente cuando React se monta */
+      .initial-loading {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        color: white;
+        text-align: center;
+        /* Asegurar que se oculte rápidamente */
+        transition: opacity 0.1s ease-out;
+      }
+      /* Ocultar loading cuando React esté listo */
+      .initial-loading.hidden {
+        display: none !important;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Fallback mientras carga React -->
+      <div class="initial-loading">
+        <div>
+          <div style="font-size: 3rem; margin-bottom: 1rem;">🎬</div>
+          <p>Cargando FirstFrame...</p>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { DynamicWidgetWrapper } from '../components/DynamicWidgetWrapper';
+import { useDynamicWallet } from '../hooks/useDynamicWallet';
 import Navigation from '../components/Navigation';
 import { getTelegramUser } from '../utils/telegram';
-import { connectWallet, disconnectWallet, getSavedWallet, type WalletInfo } from '../services/walletService';
+import { getSavedWallet, type WalletInfo } from '../services/walletService';
 import './Profile.css';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:3001/api');
@@ -47,10 +49,51 @@ function UserIPsList() {
         return;
       }
 
+      // Intentar obtener IPs desde el nuevo endpoint (prioriza registry local)
+      try {
+        console.log(`🔍 Cargando IPs para usuario ${user.id} desde /user/ips...`);
+        const response = await axios.get(`${API_URL}/user/ips/${user.id}`);
+        
+        console.log('📥 Respuesta del endpoint /user/ips:', {
+          success: response.data.success,
+          count: response.data.count,
+          itemsLength: response.data.items?.length,
+          items: response.data.items,
+        });
+        
+        if (response.data.success && response.data.items) {
+          // Asegurarse de que los items tengan el formato correcto
+          const formattedIPs = response.data.items.map((ip: any) => {
+            const formatted = {
+              ipId: ip.ipId,
+              tokenId: ip.tokenId,
+              title: ip.title || 'Untitled',
+              year: ip.year,
+              posterUrl: ip.posterUrl,
+              description: ip.description,
+              createdAt: ip.createdAt || new Date().toISOString(),
+              txHash: ip.txHash,
+            };
+            console.log(`📦 IP formateado:`, formatted);
+            return formatted;
+          });
+          
+          console.log(`✅ IPs cargados: ${formattedIPs.length}`);
+          setUserIPs(formattedIPs);
+          return;
+        } else {
+          console.warn('⚠️  Respuesta sin items o success=false:', response.data);
+        }
+      } catch (endpointError: any) {
+        console.error('❌ Error obteniendo IPs desde /user/ips:', endpointError);
+        console.error('Detalles:', endpointError.response?.data || endpointError.message);
+      }
+
+      // Fallback: usar endpoint del marketplace (registry local directo)
       const uploaderId = `TelegramUser_${user.id}`;
       const response = await axios.get(`${API_URL}/marketplace/user/${encodeURIComponent(uploaderId)}`);
       
-      if (response.data.success) {
+      if (response.data.success && response.data.items) {
         setUserIPs(response.data.items || []);
       }
     } catch (error) {
@@ -78,13 +121,26 @@ function UserIPsList() {
   return (
     <div className="user-ips-grid">
       {userIPs.map((ip) => (
-        <div key={ip.ipId} className="user-ip-card">
-          {ip.posterUrl && (
+        <div key={ip.ipId || ip.tokenId || `ip-${userIPs.indexOf(ip)}`} className="user-ip-card">
+          {ip.posterUrl ? (
             <img src={ip.posterUrl} alt={ip.title} className="user-ip-poster" />
+          ) : (
+            <div className="user-ip-poster-placeholder">
+              <div className="placeholder-icon">🎬</div>
+              <p className="placeholder-text">{ip.title}</p>
+            </div>
           )}
           <div className="user-ip-info">
             <h4>{ip.title}</h4>
             {ip.year && <p className="user-ip-year">{ip.year}</p>}
+            {ip.description && (
+              <p className="user-ip-description">{ip.description}</p>
+            )}
+            {ip.tokenId && (
+              <p className="user-ip-token-id" style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
+                Token ID: {ip.tokenId}
+              </p>
+            )}
             <div className="user-ip-actions">
               <a 
                 href={`https://aeneid.storyscan.io/token/${ip.ipId}${ip.tokenId ? `/instance/${ip.tokenId}` : ''}`}
@@ -94,9 +150,9 @@ function UserIPsList() {
               >
                 🔗 Ver en Explorer
               </a>
-              {(ip as any).txHash && (
+              {ip.txHash && (
                 <a 
-                  href={`https://aeneid.storyscan.io/tx/${(ip as any).txHash}`}
+                  href={`https://aeneid.storyscan.io/tx/${ip.txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="user-ip-link"
@@ -113,6 +169,7 @@ function UserIPsList() {
 }
 
 function Profile() {
+  const dynamicWallet = useDynamicWallet();
   const [telegramUser, setTelegramUser] = useState<TelegramUser | null>(null);
   const [wallet, setWallet] = useState<WalletInfo | null>(null);
   const [loading, setLoading] = useState(false);
@@ -121,7 +178,7 @@ function Profile() {
     puzzlesCompleted: 0,
     royaltiesPending: '0',
   });
-  const [hallidayAssets, setHallidayAssets] = useState<any[]>([]);
+  const [pendingRoyalties, setPendingRoyalties] = useState<any[]>([]);
 
   useEffect(() => {
     const user = getTelegramUser();
@@ -129,26 +186,39 @@ function Profile() {
       setTelegramUser(user);
     }
 
-    // Cargar wallet guardado
-    const savedWallet = getSavedWallet();
-    if (savedWallet) {
-      setWallet(savedWallet);
-      // Cargar balance de Story Testnet
-      loadStoryBalance(savedWallet.address);
+    // Actualizar wallet cuando Dynamic Wallet cambie (sin esperar isLoading)
+    if (dynamicWallet.connected && dynamicWallet.address) {
+      setWallet({
+        address: dynamicWallet.address,
+        connected: true,
+      });
+      // Cargar balance de Story Testnet de forma asíncrona
+      loadStoryBalance(dynamicWallet.address);
+    } else {
+      setWallet(null);
     }
 
+    // Cargar estadísticas y regalías inmediatamente (no dependen de wallet)
     loadUserStats();
-    loadHallidayAssets();
-  }, []);
+    loadPendingRoyalties();
+  }, [dynamicWallet.connected, dynamicWallet.address]);
 
   const loadStoryBalance = async (address: string) => {
     try {
-      const response = await axios.get(`${API_URL}/balance/${address}`);
-      if (response.data.success) {
-        setWallet((prev) => prev ? { ...prev, balance: response.data.balance } : null);
+      const [ipResponse, tokenResponse] = await Promise.all([
+        axios.get(`${API_URL}/balance/${address}`),
+        axios.get(`${API_URL}/balance/${address}/token`),
+      ]);
+      
+      if (ipResponse.data.success && tokenResponse.data.success) {
+        setWallet((prev) => prev ? { 
+          ...prev, 
+          balance: ipResponse.data.balance,
+          mockTokenBalance: tokenResponse.data.balance,
+        } : null);
       }
     } catch (error) {
-      console.error('Error cargando balance de Story:', error);
+      console.error('Error cargando balances:', error);
     }
   };
 
@@ -159,164 +229,141 @@ function Profile() {
         return;
       }
 
-      // Obtener IPs registrados por el usuario
-      const uploaderId = `TelegramUser_${user.id}`;
+      // Obtener estadísticas desde el endpoint que consulta blockchain
       try {
-        const userIPsResponse = await axios.get(`${API_URL}/marketplace/user/${encodeURIComponent(uploaderId)}`);
+        const statsResponse = await axios.get(`${API_URL}/user/stats/${user.id}`);
         
-        if (userIPsResponse.data.success) {
-          const userIPs = userIPsResponse.data.items || [];
+        if (statsResponse.data.success) {
           setStats({
-            ipsRegistered: userIPs.length,
-            puzzlesCompleted: 0, // TODO: Implementar tracking de puzzles completados
-            royaltiesPending: '0', // TODO: Implementar cálculo de regalías
+            ipsRegistered: statsResponse.data.stats.ipsRegistered || 0,
+            puzzlesCompleted: statsResponse.data.stats.puzzlesCompleted || 0,
+            royaltiesPending: statsResponse.data.stats.royaltiesPending || '0',
           });
+          console.log('✅ Estadísticas cargadas:', statsResponse.data.stats);
         }
       } catch (error: any) {
-        // Si el endpoint no existe o falla, intentar obtener todos los IPs y filtrar
-        console.warn('Error obteniendo IPs del usuario, intentando método alternativo:', error.message);
-        try {
-          const allIPsResponse = await axios.get(`${API_URL}/marketplace/list`);
-          if (allIPsResponse.data.success && allIPsResponse.data.items) {
-            const userIPs = allIPsResponse.data.items.filter((ip: any) => 
-              ip.uploader && ip.uploader.toLowerCase() === uploaderId.toLowerCase()
-            );
-            setStats({
-              ipsRegistered: userIPs.length,
-              puzzlesCompleted: 0,
-              royaltiesPending: '0',
-            });
-          }
-        } catch (fallbackError) {
-          console.error('Error en método alternativo:', fallbackError);
-        }
+        console.error('Error obteniendo estadísticas:', error.message);
+        // Fallback: usar valores por defecto
+        setStats({
+          ipsRegistered: 0,
+          puzzlesCompleted: 0,
+          royaltiesPending: '0',
+        });
       }
     } catch (error) {
       console.error('Error cargando estadísticas:', error);
     }
   };
 
-  const loadHallidayAssets = async () => {
+
+  const loadPendingRoyalties = async () => {
     try {
-      const response = await axios.get(`${API_URL}/halliday/assets`);
+      const user = getTelegramUser();
+      if (!user) return;
+
+      const response = await axios.get(`${API_URL}/royalties/pending/${user.id}`);
       if (response.data.success) {
-        const assets = Object.values(response.data.data || {});
-        setHallidayAssets(assets as any[]);
+        setPendingRoyalties(response.data.royalties || []);
       }
     } catch (error) {
-      console.error('Error cargando assets de Halliday:', error);
+      console.error('Error cargando regalías pendientes:', error);
     }
   };
 
-  const handleConnectWallet = async () => {
-    setLoading(true);
-    try {
-      const walletInfo = await connectWallet();
-      setWallet(walletInfo);
-      
-      // Cargar balance inmediatamente después de conectar
-      if (walletInfo.address) {
-        await loadStoryBalance(walletInfo.address);
-      }
-    } catch (error: any) {
-      console.error('Error conectando wallet:', error);
-      alert('Error: ' + (error.message || 'No se pudo conectar el wallet'));
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Dynamic Wallet maneja la conexión/desconexión automáticamente
+  // No necesitamos estas funciones, pero las mantenemos para compatibilidad
 
-  const handleDisconnectWallet = () => {
-    disconnectWallet();
-    setWallet(null);
-  };
-
-  const handleCreatePayment = async () => {
+  const handlePayRoyalty = async (royaltyId: string) => {
     if (!wallet || !wallet.connected || !wallet.address) {
-      alert('❌ Primero debes conectar tu wallet');
-      handleConnectWallet();
+      alert('❌ Primero debes conectar tu wallet usando el botón de Dynamic Widget');
       return;
     }
 
     try {
       setLoading(true);
       
-      // IMPORTANTE: Usar un chain soportado por Halliday
-      // Halliday no soporta "aeneid" directamente, usar "base", "ethereum", o "arbitrum"
-      const quoteResponse = await axios.post(`${API_URL}/halliday/quotes`, {
-        request: {
-          kind: 'FIXED_INPUT',
-          fixed_input_amount: {
-            asset: 'usd',
-            amount: '10',
-          },
-          output_asset: 'base:0x', // ETH en Base (chain soportada por Halliday)
-        },
-        price_currency: 'USD',
-        onramps: ['MOONPAY', 'TRANSAK', 'STRIPE'],
-        customer_ip_address: 'auto',
-      });
-
-      if (!quoteResponse.data.success) {
-        const errorDetails = quoteResponse.data.details || {};
-        const errorMsg = quoteResponse.data.error || 'No se pudo obtener quote de Halliday';
-        throw new Error(`${errorMsg}\n\nDetalles: ${JSON.stringify(errorDetails, null, 2)}`);
-      }
-
-      const quotes = quoteResponse.data.data?.quotes || [];
+      // Obtener la regalía para mostrar información
+      const royalty = pendingRoyalties.find(r => r.id === royaltyId);
+      const royaltyAmount = royalty?.amount || '0.1';
       
-      if (quotes.length === 0) {
-        alert('❌ No se encontraron opciones de pago disponibles');
+      // Obtener wallet del uploader desde la regalía
+      const { generateDeterministicWallet } = await import('../services/walletService');
+      const uploaderWallet = royalty?.uploaderTelegramId 
+        ? await generateDeterministicWallet(royalty.uploaderTelegramId)
+        : null;
+      
+      if (!uploaderWallet) {
+        alert('❌ No se pudo obtener la dirección del destinatario');
         return;
       }
-
-      // Usar el primer quote disponible
-      const selectedQuote = quotes[0];
       
-      // Confirmar el pago
-      const confirmResponse = await axios.post(`${API_URL}/halliday/confirm`, {
-        payment_id: selectedQuote.payment_id,
-        state_token: quoteResponse.data.data.state_token,
-        owner_address: wallet.address,
-        destination_address: wallet.address,
+      // Obtener telegramUserId del usuario actual
+      const telegramUser = getTelegramUser();
+      const telegramUserId = telegramUser?.id;
+      
+      if (!telegramUserId) {
+        alert('❌ No se pudo obtener tu ID de Telegram. Por favor, recarga la página.');
+        return;
+      }
+      
+      // Pagar regalía usando Story Protocol SDK (payRoyaltyOnBehalf)
+      console.log('💰 Pagando regalía usando Story Protocol...');
+      
+      const paymentResponse = await axios.post(`${API_URL}/royalties/pay`, {
+        royaltyId,
+        ownerAddress: wallet.address,
+        destinationAddress: uploaderWallet,
+        payerTelegramUserId: telegramUserId,
       });
 
-      if (confirmResponse.data.success) {
-        const paymentData = confirmResponse.data.data;
+      if (paymentResponse.data.success) {
+        const paymentData = paymentResponse.data.payment;
+        const balances = paymentResponse.data.balances;
+        const txHash = paymentResponse.data.txHash;
         
-        // Mostrar información del pago
-        if (paymentData.next_instruction?.funding_page_url) {
-          const shouldOpen = window.confirm(
-            `✅ Pago iniciado exitosamente!\n\n` +
-            `📊 Monto: $10 USD\n` +
-            `💰 Recibirás: ${paymentData.quoted?.output_amount?.amount || 'N/A'} ${paymentData.quoted?.output_amount?.asset || ''}\n\n` +
-            `¿Deseas abrir la página de pago de Halliday?`
-          );
-          
-          if (shouldOpen) {
-            window.open(paymentData.next_instruction.funding_page_url, '_blank');
-          }
-        } else {
-          alert('✅ Pago iniciado exitosamente!\n\n' +
-                'En producción, se abrirá automáticamente el widget de Halliday para completar el pago.');
+        let successMessage = `✅ Regalía pagada exitosamente!\n\n`;
+        successMessage += `💰 Monto: ${royaltyAmount} IP\n`;
+        successMessage += `📤 Destinatario: ${paymentResponse.data.royalty.uploaderName || 'Creador original'}\n`;
+        
+        if (txHash) {
+          successMessage += `🔗 TX Hash: ${txHash}\n`;
+          successMessage += `\n📊 Ver en explorador:\n`;
+          successMessage += `https://aeneid.storyscan.io/tx/${txHash}\n`;
         }
+        
+        if (balances) {
+          successMessage += `\n📊 Balances:\n`;
+          successMessage += `Tu balance: ${parseFloat(balances.payer.before).toFixed(4)} IP → ${parseFloat(balances.payer.after).toFixed(4)} IP\n`;
+          successMessage += `Destinatario: ${parseFloat(balances.uploader.before).toFixed(4)} IP → ${parseFloat(balances.uploader.after).toFixed(4)} IP\n`;
+        }
+        
+        alert(successMessage);
+
+        // Recargar regalías pendientes y estadísticas
+        await loadPendingRoyalties();
+        await loadUserStats();
+        await loadStoryBalance(wallet.address);
       } else {
-        throw new Error('No se pudo confirmar el pago');
+        throw new Error(paymentResponse.data.error || 'No se pudo procesar el pago');
       }
     } catch (error: any) {
-      console.error('Error creando pago:', error);
-      const errorMsg = error.response?.data?.error || error.message || 'No se pudo crear el pago';
-      const errorDetails = error.response?.data?.details;
+      console.error('Error pagando regalía:', error);
+      const errorMsg = error.response?.data?.error || error.message || 'No se pudo pagar la regalía';
+      const errorDetails = error.response?.data;
       
       let alertMessage = '❌ Error: ' + errorMsg;
-      if (errorDetails) {
-        alertMessage += '\n\nDetalles técnicos:\n' + JSON.stringify(errorDetails, null, 2);
+      if (errorDetails?.message) {
+        alertMessage += '\n\n' + errorDetails.message;
+      }
+      if (errorDetails?.faucetUrl) {
+        alertMessage += `\n\n💧 Obtén fondos del faucet: ${errorDetails.faucetUrl}`;
       }
       alert(alertMessage);
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <div className="profile">
@@ -365,11 +412,30 @@ function Profile() {
                   📋
                 </button>
               </div>
+              {dynamicWallet.network !== 1315 && (
+                <div style={{ 
+                  padding: '0.75rem', 
+                  background: '#fff3cd', 
+                  borderRadius: '8px', 
+                  marginTop: '0.5rem',
+                  fontSize: '0.85rem'
+                }}>
+                  ⚠️ Cambia a Story Testnet (Chain ID: 1315) para usar FirstFrame
+                </div>
+              )}
               <div className="wallet-balance">
-                <span className="label">IP Balance (Story Testnet):</span>
-                <span className="balance">
-                  {wallet.balance !== undefined ? `${parseFloat(wallet.balance).toFixed(2)} IP` : 'Cargando...'}
-                </span>
+                <div style={{ marginBottom: '0.75rem' }}>
+                  <span className="label">IP Nativo (para gas):</span>
+                  <span className="balance">
+                    {wallet.balance !== undefined ? `${parseFloat(wallet.balance).toFixed(2)} IP` : 'Cargando...'}
+                  </span>
+                </div>
+                <div>
+                  <span className="label">MockERC20 (para regalías):</span>
+                  <span className="balance">
+                    {wallet.mockTokenBalance !== undefined ? `${parseFloat(wallet.mockTokenBalance).toFixed(2)} tokens` : 'Cargando...'}
+                  </span>
+                </div>
                 {wallet.balance !== undefined && parseFloat(wallet.balance) < 0.001 && (
                   <div style={{ marginTop: '10px' }}>
                     <a
@@ -389,45 +455,52 @@ function Profile() {
                         marginTop: '0.5rem',
                       }}
                     >
-                      💧 Obtener Fondos del Faucet
+                      💧 Obtener IP Nativo (Faucet)
                     </a>
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
-                      Necesitas fondos para registrar IPs en Story Testnet
+                      Necesitas IP nativo para pagar gas fees
+                    </p>
+                  </div>
+                )}
+                {wallet.mockTokenBalance !== undefined && parseFloat(wallet.mockTokenBalance) < 0.1 && (
+                  <div style={{ marginTop: '10px' }}>
+                    <a
+                      href="https://aeneid.storyscan.io/address/0xF2104833d386a2734a4eB3B8ad6FC6812F29E38E?tab=write_contract#0x40c10f19"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-faucet"
+                      style={{
+                        display: 'inline-block',
+                        padding: '0.5rem 1rem',
+                        background: 'linear-gradient(135deg, #9C27B0 0%, #E91E63 100%)',
+                        color: 'white',
+                        textDecoration: 'none',
+                        borderRadius: '8px',
+                        fontSize: '0.85rem',
+                        fontWeight: 600,
+                        marginTop: '0.5rem',
+                      }}
+                    >
+                      🪙 Obtener MockERC20 Tokens
+                    </a>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
+                      Necesitas MockERC20 tokens para pagar regalías
                     </p>
                   </div>
                 )}
               </div>
               <div className="wallet-actions">
-                <button 
-                  className="btn-wallet-action"
-                  onClick={handleCreatePayment}
-                  disabled={loading}
-                >
-                  {loading ? 'Procesando...' : '💳 Crear Pago con Halliday'}
-                </button>
-                <button 
-                  className="btn-wallet-disconnect"
-                  onClick={handleDisconnectWallet}
-                >
-                  Desconectar
-                </button>
+                <DynamicWidgetWrapper />
               </div>
-              <p className="wallet-note">
-                💡 Usa Halliday para convertir USD a cripto sin fricción
-              </p>
             </div>
           ) : (
             <div className="wallet-disconnected">
               <p>Conecta tu wallet para gestionar pagos y regalías</p>
-              <button 
-                className="btn-connect-wallet"
-                onClick={handleConnectWallet}
-                disabled={loading}
-              >
-                {loading ? 'Conectando...' : '🔗 Conectar Wallet (Halliday)'}
-              </button>
+              <div style={{ marginTop: '1rem' }}>
+                <DynamicWidgetWrapper />
+              </div>
               <p className="wallet-info">
-                ⚡ Tu wallet se crea automáticamente vinculado a tu cuenta de Telegram
+                ⚡ Conecta tu wallet usando Dynamic para aprobar y pagar regalías
               </p>
             </div>
           )}
@@ -452,23 +525,58 @@ function Profile() {
           </div>
         </div>
 
+        {/* Regalías Pendientes */}
+        {pendingRoyalties.length > 0 && (
+          <div className="profile-card royalties-pending">
+            <div className="card-header">
+              <h3>💳 Regalías Pendientes</h3>
+            </div>
+            <div className="royalties-list">
+              {pendingRoyalties.map((royalty) => {
+                const expiresAt = new Date(royalty.expiresAt);
+                const minutesLeft = Math.ceil((expiresAt.getTime() - Date.now()) / 60000);
+                const isExpired = minutesLeft <= 0;
+                
+                return (
+                  <div 
+                    key={royalty.id}
+                    className={`royalty-item ${isExpired ? 'expired' : ''}`}
+                  >
+                    <div className="royalty-info">
+                      <h4>{royalty.videoTitle || 'Video protegido'}</h4>
+                      <p className="royalty-details">
+                        Para: {royalty.uploaderName || 'Creador original'} • {royalty.amount} IP
+                      </p>
+                      {isExpired ? (
+                        <p className="royalty-expired">
+                          ⏰ Expirada - Serás penalizado
+                        </p>
+                      ) : (
+                        <p className="royalty-time">
+                          ⏰ {minutesLeft} minuto{minutesLeft !== 1 ? 's' : ''} restante{minutesLeft !== 1 ? 's' : ''}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      className="btn-pay-royalty"
+                      onClick={() => handlePayRoyalty(royalty.id)}
+                      disabled={loading || isExpired}
+                    >
+                      {loading ? 'Procesando...' : `💳 Pagar ${royalty.amount} IP`}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Mis IPs */}
         <div className="profile-section">
           <h3>📚 Mis IPs ({stats.ipsRegistered})</h3>
           <UserIPsList />
         </div>
 
-        {/* Assets de Halliday (debug) */}
-        {hallidayAssets.length > 0 && process.env.NODE_ENV === 'development' && (
-          <div className="profile-card debug-info">
-            <div className="card-header">
-              <h3>🔧 Debug: Assets Halliday</h3>
-            </div>
-            <p className="debug-text">
-              {hallidayAssets.length} assets disponibles
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );

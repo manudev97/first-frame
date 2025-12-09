@@ -130,7 +130,7 @@ router.post('/register-ip', async (req, res) => {
                   console.log('🔄 IP ID obtenido desde eventos de transacción:');
                   console.log(`   SDK IP ID: ${tx.ipId}`);
                   console.log(`   Event IP ID: ${ipDetails.ipId}`);
-                  correctIpId = ipDetails.ipId;
+                  correctIpId = ipDetails.ipId as `0x${string}`;
                 }
                 tokenId = ipDetails.tokenId;
               } else {
@@ -159,6 +159,7 @@ router.post('/register-ip', async (req, res) => {
                   txHash: tx.txHash,
                   createdAt: new Date().toISOString(),
                   uploader: req.body.uploader,
+                  uploaderName: req.body.uploaderName, // Guardar nombre del uploader
                 });
               }
             } catch (saveError) {
@@ -170,12 +171,23 @@ router.post('/register-ip', async (req, res) => {
               correctIpId: correctIpId,
               tokenId: tokenId ? tokenId.toString() : null,
               txHash: tx.txHash,
+              title: req.body.title,
             });
+
+            // IMPORTANTE: Asegurarse de que el IP ID sea válido antes de devolverlo
+            if (!correctIpId || typeof correctIpId !== 'string' || !correctIpId.startsWith('0x') || correctIpId.length !== 42) {
+              console.error('❌ IP ID inválido generado:', correctIpId);
+              return res.status(500).json({
+                success: false,
+                error: 'IP ID inválido generado por el SDK',
+                details: { correctIpId, sdkIpId: tx.ipId },
+              });
+            }
 
             res.json({ 
               success: true, 
               txHash: tx.txHash, 
-              ipId: correctIpId, // Usar el IP ID correcto
+              ipId: correctIpId, // Usar el IP ID correcto (validado)
               tokenId: tokenId ? tokenId.toString() : null, // Incluir token ID si está disponible
             });
           } catch (error: any) {
@@ -196,21 +208,32 @@ router.post('/register-ip', async (req, res) => {
 // Registrar derivado (póster del puzzle)
 router.post('/register-derivative', async (req, res) => {
   try {
-    const { parentIpId, posterMetadata, licenseTokenId } = req.body;
+    const { parentIpId, posterMetadata, licenseTokenId, userTelegramId } = req.body;
     
     const client = await createStoryClient();
     
-    // Usar registerIpAndMakeDerivative - requiere formato diferente
-    const account = privateKeyToAccount(process.env.STORY_PRIVATE_KEY as `0x${string}`);
-    const recipient = account.address;
+    // IMPORTANTE: El token derivado debe ir al wallet del usuario que resolvió el puzzle
+    // No al bot wallet
+    let recipient: `0x${string}`;
     
-    // TODO: Verificar el formato correcto de registerIpAndMakeDerivative
-    // Por ahora, usamos registerIpAsset y luego attachamos como derivado
+    if (userTelegramId) {
+      // Generar wallet determinístico del usuario
+      const { generateDeterministicAddress } = await import('../services/deterministicWalletService');
+      recipient = generateDeterministicAddress(userTelegramId);
+      console.log(`✅ Token derivado se enviará al wallet del usuario: ${recipient}`);
+    } else {
+      // Fallback: usar bot wallet si no hay userTelegramId
+      const account = privateKeyToAccount(process.env.STORY_PRIVATE_KEY as `0x${string}`);
+      recipient = account.address;
+      console.warn(`⚠️  No se proporcionó userTelegramId, usando bot wallet: ${recipient}`);
+    }
+    
+    // Registrar el póster como IP derivado
     const tx = await client.ipAsset.registerIpAsset({
       nft: {
         type: 'mint',
         spgNftContract: process.env.STORY_SPG_NFT_CONTRACT! as `0x${string}`,
-        recipient: recipient,
+        recipient: recipient, // Wallet del usuario que resolvió el puzzle
       },
       ipMetadata: {
         ipMetadataURI: posterMetadata.uri,

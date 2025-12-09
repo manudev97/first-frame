@@ -1,4 +1,4 @@
-// Servicio para gestión de wallet usando Halliday API
+// Servicio para gestión de wallet usando Dynamic Wallet
 import axios from 'axios';
 import { getTelegramUser } from '../utils/telegram';
 
@@ -7,9 +7,9 @@ const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 
 export interface WalletInfo {
   address: string;
   connected: boolean;
-  balance?: string;
+  balance?: string; // IP nativo
+  mockTokenBalance?: string; // MockERC20 tokens
   telegramUserId?: number;
-  hallidayVerified?: boolean;
 }
 
 /**
@@ -18,7 +18,7 @@ export interface WalletInfo {
  * IMPORTANTE: Debe usar el mismo algoritmo que el backend (SHA-256)
  * Esto asegura que el mismo usuario de Telegram siempre obtenga la misma dirección
  */
-async function generateDeterministicWallet(telegramUserId: number): Promise<string> {
+export async function generateDeterministicWallet(telegramUserId: number): Promise<string> {
   // Crear un seed determinístico basado en el ID de Telegram
   // DEBE ser exactamente el mismo que en el backend: `firstframe_telegram_${telegramUserId}_wallet_seed_v1`
   const seed = `firstframe_telegram_${telegramUserId}_wallet_seed_v1`;
@@ -31,8 +31,13 @@ async function generateDeterministicWallet(telegramUserId: number): Promise<stri
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     
+    // IMPORTANTE: Usar el hash completo como private key y derivar la dirección
+    // Esto garantiza que la dirección corresponda a una private key válida
+    // NOTA: Para usar ethers.js, necesitaríamos instalarlo. Por ahora, usamos el método antiguo
+    // pero el backend ahora puede buscar el telegramUserId correcto que genera el wallet
+    
     // Tomar los primeros 40 caracteres (20 bytes) para la dirección Ethereum
-    // DEBE ser exactamente igual al backend
+    // DEBE ser exactamente igual al backend (método antiguo para compatibilidad)
     const address = '0x' + hashHex.substring(0, 40);
     
     return address;
@@ -70,10 +75,9 @@ function getWalletStorageKey(telegramUserId: number): string {
 }
 
 /**
- * Conecta el wallet usando Halliday API
- * Verifica que Halliday esté disponible y genera una wallet determinística
- * La wallet es determinística basada en el ID de Telegram del usuario
- * IMPORTANTE: Cada usuario tiene su propia wallet almacenada con una clave única
+ * Conecta el wallet usando Dynamic Wallet
+ * NOTA: Esta función ahora es un wrapper para compatibilidad
+ * El usuario debe conectar su wallet usando Dynamic Widget desde la UI
  */
 export async function connectWallet(): Promise<WalletInfo> {
   const user = getTelegramUser();
@@ -81,42 +85,13 @@ export async function connectWallet(): Promise<WalletInfo> {
     throw new Error('No se pudo obtener información de Telegram. Asegúrate de abrir la app desde Telegram.');
   }
 
-  // Verificar conexión con Halliday API
-  let hallidayVerified = false;
-  try {
-    const assetsResponse = await axios.get(`${API_URL}/halliday/assets`);
-    if (assetsResponse.data.success) {
-      hallidayVerified = true;
-      console.log('✅ Halliday API verificada correctamente');
-    }
-  } catch (hallidayError: any) {
-    console.warn('⚠️  No se pudo verificar Halliday API:', hallidayError.message);
-    console.warn('💡 Continuando con wallet determinística (modo fallback)');
-  }
-
-  // Generar wallet determinística basada en el ID de Telegram
-  // Esta dirección será siempre la misma para el mismo usuario
-  const address = await generateDeterministicWallet(user.id);
-  
-  const walletInfo: WalletInfo = {
-    address,
-    connected: true,
-    telegramUserId: user.id,
-    hallidayVerified,
-  };
-
-  // Guardar en localStorage con clave única por usuario
-  const storageKey = getWalletStorageKey(user.id);
-  localStorage.setItem(storageKey, JSON.stringify(walletInfo));
-  
-  console.log('✅ Wallet conectado:', {
-    address,
-    telegramUserId: user.id,
-    hallidayVerified,
-    storageKey,
-  });
-  
-  return walletInfo;
+  // Con Dynamic Wallet, el usuario debe conectar desde el widget
+  // Esta función se mantiene para compatibilidad pero no hace nada
+  // La wallet real se obtiene desde useDynamicWallet hook
+  throw new Error(
+    'Por favor, conecta tu wallet usando el botón "Conectar Wallet" en la interfaz. ' +
+    'Dynamic Wallet maneja la conexión automáticamente.'
+  );
 }
 
 /**
@@ -208,7 +183,23 @@ export async function getStoryBalance(address: string): Promise<string> {
 }
 
 /**
- * Actualiza el balance del wallet guardado
+ * Obtiene el balance de MockERC20 para una dirección
+ */
+export async function getMockTokenBalance(address: string): Promise<string> {
+  try {
+    const response = await axios.get(`${API_URL}/balance/${address}/token`);
+    if (response.data.success) {
+      return response.data.balance;
+    }
+    throw new Error('No se pudo obtener el balance de MockERC20');
+  } catch (error: any) {
+    console.error('Error obteniendo balance de MockERC20:', error);
+    return '0';
+  }
+}
+
+/**
+ * Actualiza el balance del wallet guardado (IP nativo y MockERC20)
  */
 export async function updateWalletBalance(): Promise<WalletInfo | null> {
   const wallet = getSavedWallet();
@@ -222,10 +213,15 @@ export async function updateWalletBalance(): Promise<WalletInfo | null> {
   }
 
   try {
-    const balance = await getStoryBalance(wallet.address);
+    const [balance, mockTokenBalance] = await Promise.all([
+      getStoryBalance(wallet.address),
+      getMockTokenBalance(wallet.address),
+    ]);
+    
     const updatedWallet: WalletInfo = {
       ...wallet,
       balance,
+      mockTokenBalance,
     };
     
     // Guardar con clave única por usuario

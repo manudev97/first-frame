@@ -126,6 +126,7 @@ function Upload() {
         description: movieData?.plot || movieData?.Plot,
         imdbId: movieData?.imdbId || movieData?.imdbID,
         uploader: uploaderId, // CRÍTICO: Enviar uploader para que se muestre en el perfil
+        uploaderName: telegramUser ? `${telegramUser.first_name} ${telegramUser.last_name || ''}`.trim() : undefined, // Enviar nombre del uploader
         userWalletAddress: savedWallet.address, // CRÍTICO: Wallet del usuario para pagar fees
         // NO pasar licenseTerms - se registrarán después
       });
@@ -205,11 +206,21 @@ function Upload() {
         (async () => {
           try {
             const telegramUser = getTelegramUser();
+            const ipIdToSend = storyResponse.data.ipId; // Usar el IP ID que viene del backend
+            
+            console.log('📤 Enviando video al canal con IP ID:', ipIdToSend, 'para:', title);
+            
+            if (!ipIdToSend || typeof ipIdToSend !== 'string' || !ipIdToSend.startsWith('0x')) {
+              console.error('❌ IP ID inválido recibido del backend:', ipIdToSend);
+              throw new Error('IP ID inválido recibido del backend');
+            }
+            
             const forwardResponse = await axios.post(`${API_URL}/upload/forward-to-channel`, {
               videoFileId: videoInfo.fileId,
               title,
               year: parseInt(year),
-              ipId: storyResponse.data.ipId,
+              ipId: ipIdToSend, // CRÍTICO: Usar el IP ID correcto del video registrado
+              tokenId: storyResponse.data.tokenId || null, // Agregar tokenId (instancia)
               uploaderTelegramId: telegramUser?.id || 0,
               uploaderName: telegramUser ? `${telegramUser.first_name} ${telegramUser.last_name || ''}`.trim() : undefined,
             });

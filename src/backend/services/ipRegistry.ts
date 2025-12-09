@@ -15,6 +15,9 @@ export interface RegisteredIP {
   txHash: string;
   createdAt: string;
   uploader?: string;
+  uploaderName?: string; // Nombre del usuario que subió el video
+  channelMessageId?: number; // ID del mensaje en el canal privado
+  videoFileId?: string; // File ID del video para reenviar directamente
 }
 
 const REGISTRY_FILE = path.join(process.cwd(), 'data', 'ip-registry.json');

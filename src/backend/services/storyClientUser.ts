@@ -2,6 +2,19 @@
 import { StoryClient, StoryConfig } from '@story-protocol/core-sdk';
 import { http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
+import crypto from 'crypto';
+
+/**
+ * Genera una dirección de wallet determinística basada en el ID de Telegram
+ * IMPORTANTE: Esta función usa el mismo método que el frontend (primeros 40 caracteres del hash)
+ * para garantizar que ambos generen la misma dirección
+ */
+export function generateDeterministicWallet(telegramUserId: number): string {
+  // Usar el mismo método que el frontend: primeros 40 caracteres del hash SHA-256
+  const seed = `firstframe_telegram_${telegramUserId}_wallet_seed_v1`;
+  const hash = crypto.createHash('sha256').update(seed).digest('hex');
+  return '0x' + hash.substring(0, 40);
+}
 
 /**
  * Crea un Story Client usando la wallet del usuario
@@ -44,6 +57,38 @@ export async function createStoryClientForUser(userWalletAddress: `0x${string}`)
   return {
     client,
     recipient: userWalletAddress, // Wallet del usuario como recipient
+  };
+}
+
+/**
+ * Obtiene la configuración de la chain para Story Protocol
+ */
+export function getChain() {
+  // Obtener chainId correcto - Aeneid testnet usa 1315
+  let chainId: any = process.env.STORY_CHAIN_ID;
+  
+  if (!chainId || chainId === 'aeneid') {
+    chainId = 1315;
+  } else if (typeof chainId === 'string' && !isNaN(Number(chainId))) {
+    chainId = Number(chainId);
+  }
+
+  // Retornar configuración de chain para viem
+  // Aeneid testnet: chainId 1315
+  return {
+    id: chainId as number,
+    name: chainId === 1315 ? 'Aeneid Testnet' : 'Story Mainnet',
+    network: chainId === 1315 ? 'aeneid' : 'story',
+    nativeCurrency: {
+      decimals: 18,
+      name: 'IP',
+      symbol: 'IP',
+    },
+    rpcUrls: {
+      default: {
+        http: [process.env.STORY_RPC_URL || ''],
+      },
+    },
   };
 }
 

@@ -6,11 +6,11 @@ import { imdbRouter } from './routes/imdb';
 import { puzzleRouter } from './routes/puzzle';
 import { ipRouter } from './routes/ip';
 import { marketplaceRouter } from './routes/marketplace';
-import { hallidayRouter } from './routes/halliday';
 import { uploadRouter } from './routes/upload';
 import { walletRouter } from './routes/wallet';
 import { balanceRouter } from './routes/balance';
 import { userRouter } from './routes/user';
+import { royaltiesRouter } from './routes/royalties';
 
 dotenv.config();
 
@@ -47,11 +47,11 @@ app.use('/api/imdb', imdbRouter);
 app.use('/api/puzzle', puzzleRouter);
 app.use('/api/ip', ipRouter);
 app.use('/api/marketplace', marketplaceRouter);
-app.use('/api/halliday', hallidayRouter);
 app.use('/api/upload', uploadRouter);
 app.use('/api/wallet', walletRouter);
 app.use('/api/balance', balanceRouter);
 app.use('/api/user', userRouter);
+app.use('/api/royalties', royaltiesRouter);
 
 // Health check
 app.get('/health', (req, res) => {

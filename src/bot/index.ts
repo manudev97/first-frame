@@ -2,11 +2,26 @@ import { Telegraf, Context } from 'telegraf';
 import { message } from 'telegraf/filters';
 import dotenv from 'dotenv';
 import axios from 'axios';
+import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { setBotInstance } from '../backend/routes/upload';
 
 dotenv.config();
 
-const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN!);
+const TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
+const LOGIN_URL = process.env.TELEGRAM_WEBAPP_URL; // Usar TELEGRAM_WEBAPP_URL en lugar de LOGIN_URL
+
+if (!TOKEN || !LOGIN_URL) {
+  console.error('⚠️  Por favor agrega TELEGRAM_BOT_TOKEN y TELEGRAM_WEBAPP_URL a tu archivo .env');
+  if (!TOKEN) {
+    console.error('❌ TELEGRAM_BOT_TOKEN no está configurado');
+  }
+  if (!LOGIN_URL) {
+    console.error('❌ TELEGRAM_WEBAPP_URL no está configurado');
+  }
+}
+
+const bot = new Telegraf(TOKEN);
 
 // Exportar instancia del bot para que el backend pueda usarlo
 export { bot };
@@ -15,11 +30,62 @@ export { bot };
 // Nota: Esto se ejecuta cuando se importa este módulo
 setBotInstance(bot);
 
+/**
+ * OPTIMIZACIÓN CRÍTICA: Cachear TELEGRAM_SECRET para no calcularlo cada vez
+ * El hash SHA-256 del TOKEN es constante, no necesita recalcularse
+ * Esto mejora significativamente el rendimiento con múltiples usuarios concurrentes
+ */
+const TELEGRAM_SECRET = crypto
+  .createHash('sha256')
+  .update(TOKEN)
+  .digest();
+
+/**
+ * Genera hash HMAC para autenticación de Telegram
+ * OPTIMIZADO: Usa TELEGRAM_SECRET cacheado para mejor rendimiento
+ * Basado en: https://github.com/dynamic-labs/telegram-miniapp-dynamic
+ */
+function generateTelegramHash(data: {
+  authDate: number;
+  firstName: string;
+  lastName: string;
+  username?: string;
+  id: number;
+  photoURL: string;
+}): string {
+  // Preparar objeto de datos con campos requeridos
+  const useData: { [key: string]: string } = {
+    auth_date: String(data.authDate),
+    first_name: data.firstName,
+    id: String(data.id),
+    last_name: data.lastName,
+    photo_url: data.photoURL,
+    username: data.username || '',
+  };
+
+  // Filtrar valores undefined o vacíos de forma más eficiente
+  const filteredUseData: { [key: string]: string } = {};
+  for (const [key, value] of Object.entries(useData)) {
+    if (value) filteredUseData[key] = value;
+  }
+
+  // Ordenar entradas y crear data check string de forma más eficiente
+  const sortedKeys = Object.keys(filteredUseData).sort();
+  const dataCheckArr = sortedKeys
+    .map(key => `${key}=${filteredUseData[key]}`)
+    .join('\n');
+
+  // Generar HMAC-SHA256 hash usando el SECRET cacheado
+  // Esto es mucho más rápido que calcular el hash del TOKEN cada vez
+  return crypto
+    .createHmac('sha256', TELEGRAM_SECRET)
+    .update(dataCheckArr)
+    .digest('hex');
+}
+
 // Comandos básicos
 bot.command('start', async (ctx: Context) => {
-  const webappUrl = process.env.TELEGRAM_WEBAPP_URL;
-  
-  if (!webappUrl || webappUrl.includes('localhost')) {
+  if (!LOGIN_URL || LOGIN_URL.includes('localhost')) {
     console.warn('⚠️  TELEGRAM_WEBAPP_URL no está configurado o usa localhost. Los botones de Mini App no funcionarán.');
     await ctx.reply(
       '🎬 ¡Bienvenido a FirstFrame!\n\n' +
@@ -34,7 +100,54 @@ bot.command('start', async (ctx: Context) => {
     );
     return;
   }
-  
+
+  if (!TOKEN) {
+    console.warn('⚠️  TELEGRAM_BOT_TOKEN no está configurado. Telegram Auto-Wallets no funcionará.');
+    await ctx.reply(
+      '🎬 ¡Bienvenido a FirstFrame!\n\n' +
+      '⚠️ Error: TELEGRAM_BOT_TOKEN no está configurado.\n\n' +
+      'Por favor configura el token en tu archivo .env'
+    );
+    return;
+  }
+
+  // Extraer datos del usuario del contexto
+  const from = ctx.from;
+  if (!from) {
+    await ctx.reply('❌ Error: No se pudieron obtener los datos del usuario.');
+    return;
+  }
+
+  const userData = {
+    authDate: Math.floor(new Date().getTime() / 1000), // Timestamp en segundos
+    firstName: from.first_name || '',
+    lastName: from.last_name || '',
+    username: from.username || '',
+    id: from.id,
+    photoURL: '', // Telegram no proporciona photoURL directamente
+  };
+
+  // Generar hash para autenticación de Telegram
+  const hash = generateTelegramHash(userData);
+
+  // Crear JWT con datos del usuario y hash
+  const telegramAuthToken = jwt.sign(
+    {
+      ...userData,
+      hash,
+    },
+    TOKEN, // Usar el bot token para firmar el JWT
+    { algorithm: 'HS256' }
+  );
+
+  console.log('[DEBUG] JWT generado para usuario', { id: userData.id, username: userData.username });
+
+  // URL-encode el JWT generado para uso seguro en URL
+  const encodedTelegramAuthToken = encodeURIComponent(telegramAuthToken);
+
+  // Crear URL con el token como query parameter
+  const webappUrlWithToken = `${LOGIN_URL}/?telegramAuthToken=${encodedTelegramAuthToken}`;
+
   await ctx.reply(
     '🎬 ¡Bienvenido a FirstFrame!\n\n' +
     'Protege tu contenido audiovisual y gana acceso exclusivo resolviendo rompecabezas.\n\n' +
@@ -47,7 +160,7 @@ bot.command('start', async (ctx: Context) => {
     {
       reply_markup: {
         inline_keyboard: [[
-          { text: '🎮 Abrir Mini App', web_app: { url: webappUrl } }
+          { text: '🎮 Abrir Mini App', web_app: { url: webappUrlWithToken } }
         ]]
       }
     }
@@ -55,13 +168,31 @@ bot.command('start', async (ctx: Context) => {
 });
 
 bot.command('upload', async (ctx: Context) => {
-  const webappUrl = process.env.TELEGRAM_WEBAPP_URL;
   const replyOptions: any = {};
   
-  if (webappUrl && !webappUrl.includes('localhost')) {
+  // Generar URL con token para el usuario actual
+  const from = ctx.from;
+  if (from && LOGIN_URL && !LOGIN_URL.includes('localhost') && TOKEN) {
+    const userData = {
+      authDate: Math.floor(new Date().getTime() / 1000),
+      firstName: from.first_name || '',
+      lastName: from.last_name || '',
+      username: from.username || '',
+      id: from.id,
+      photoURL: '',
+    };
+    const hash = generateTelegramHash(userData);
+    const telegramAuthToken = jwt.sign(
+      { ...userData, hash },
+      TOKEN,
+      { algorithm: 'HS256' }
+    );
+    const encodedToken = encodeURIComponent(telegramAuthToken);
+    const url = `${LOGIN_URL}/upload?telegramAuthToken=${encodedToken}`;
+    
     replyOptions.reply_markup = {
       inline_keyboard: [[
-        { text: '📤 Subir Video', web_app: { url: `${webappUrl}/upload` } }
+        { text: '📤 Subir Video', web_app: { url } }
       ]]
     };
   }
@@ -77,13 +208,30 @@ bot.command('upload', async (ctx: Context) => {
 });
 
 bot.command('puzzle', async (ctx: Context) => {
-  const webappUrl = process.env.TELEGRAM_WEBAPP_URL;
   const replyOptions: any = {};
   
-  if (webappUrl && !webappUrl.includes('localhost')) {
+  const from = ctx.from;
+  if (from && LOGIN_URL && !LOGIN_URL.includes('localhost') && TOKEN) {
+    const userData = {
+      authDate: Math.floor(new Date().getTime() / 1000),
+      firstName: from.first_name || '',
+      lastName: from.last_name || '',
+      username: from.username || '',
+      id: from.id,
+      photoURL: '',
+    };
+    const hash = generateTelegramHash(userData);
+    const telegramAuthToken = jwt.sign(
+      { ...userData, hash },
+      TOKEN,
+      { algorithm: 'HS256' }
+    );
+    const encodedToken = encodeURIComponent(telegramAuthToken);
+    const url = `${LOGIN_URL}/puzzle?telegramAuthToken=${encodedToken}`;
+    
     replyOptions.reply_markup = {
       inline_keyboard: [[
-        { text: '🎮 Jugar Ahora', web_app: { url: `${webappUrl}/puzzle` } }
+        { text: '🎮 Jugar Ahora', web_app: { url } }
       ]]
     };
   }
@@ -97,13 +245,37 @@ bot.command('puzzle', async (ctx: Context) => {
 
 bot.command('profile', async (ctx: Context) => {
   const userId = ctx.from?.id;
-  const webappUrl = process.env.TELEGRAM_WEBAPP_URL;
+  
+  // Verificar que userId existe antes de continuar
+  if (!userId) {
+    await ctx.reply('❌ No se pudo identificar tu usuario.');
+    return;
+  }
+  
   const replyOptions: any = {};
   
-  if (webappUrl && !webappUrl.includes('localhost')) {
+  const from = ctx.from;
+  if (from && LOGIN_URL && !LOGIN_URL.includes('localhost') && TOKEN) {
+    const userData = {
+      authDate: Math.floor(new Date().getTime() / 1000),
+      firstName: from.first_name || '',
+      lastName: from.last_name || '',
+      username: from.username || '',
+      id: from.id,
+      photoURL: '',
+    };
+    const hash = generateTelegramHash(userData);
+    const telegramAuthToken = jwt.sign(
+      { ...userData, hash },
+      TOKEN,
+      { algorithm: 'HS256' }
+    );
+    const encodedToken = encodeURIComponent(telegramAuthToken);
+    const url = `${LOGIN_URL}/profile?telegramAuthToken=${encodedToken}`;
+    
     replyOptions.reply_markup = {
       inline_keyboard: [[
-        { text: '📊 Ver Detalles', web_app: { url: `${webappUrl}/profile` } }
+        { text: '📊 Ver Detalles', web_app: { url } }
       ]]
     };
   }
@@ -113,26 +285,98 @@ bot.command('profile', async (ctx: Context) => {
   let statsMessage = `👤 Tu Perfil\n\nID: ${userId}\n`;
   
   try {
-    // Importar la función directamente para evitar problemas de conexión HTTP
+    // Importar funciones necesarias
     const { getIPsByUploader } = await import('../backend/services/ipRegistry');
-    const uploaderId = `TelegramUser_${userId}`;
-    const userIPs = await getIPsByUploader(uploaderId);
+    const { getStoryBalance } = await import('../backend/services/balanceService');
+    const { getIPCountByAddress } = await import('../backend/services/blockchainIPService');
+    const crypto = require('crypto');
+    
+    // Función para generar wallet determinística (mismo algoritmo que el backend)
+    function generateDeterministicWallet(telegramUserId: number): string {
+      const seed = `firstframe_telegram_${telegramUserId}_wallet_seed_v1`;
+      const hash = crypto.createHash('sha256').update(seed).digest('hex');
+      return '0x' + hash.substring(0, 40);
+    }
+    
+    const userWalletAddress = generateDeterministicWallet(userId);
+    
+    // Obtener IPs desde la blockchain (fuente de verdad)
+    let ipsFromBlockchain = 0;
+    try {
+      ipsFromBlockchain = await getIPCountByAddress(userWalletAddress as `0x${string}`);
+      console.log(`✅ IPs obtenidos desde blockchain para ${userWalletAddress}: ${ipsFromBlockchain}`);
+    } catch (blockchainError: any) {
+      console.warn('⚠️  No se pudieron obtener IPs desde blockchain, usando registry local:', blockchainError.message);
+      // Fallback: usar registry local
+      const uploaderId = `TelegramUser_${userId}`;
+      const userIPs = await getIPsByUploader(uploaderId);
+      ipsFromBlockchain = userIPs.length;
+    }
+    
+    // Obtener wallet del usuario para mostrar balance (IP nativo y MockERC20)
+    let ipBalance = '0.00';
+    let mockTokenBalance = '0.00';
+    try {
+      const userBalance = await getStoryBalance(userWalletAddress as `0x${string}`);
+      ipBalance = parseFloat(userBalance).toFixed(2);
+      
+      // Obtener balance de MockERC20
+      const { getTokenBalance, getRoyaltyTokenAddress } = await import('../backend/services/tokenBalanceService');
+      const tokenAddress = getRoyaltyTokenAddress();
+      const tokenBalance = await getTokenBalance(tokenAddress, userWalletAddress as `0x${string}`);
+      mockTokenBalance = parseFloat(tokenBalance).toFixed(2);
+    } catch (balanceError: any) {
+      console.warn('No se pudo obtener balance del usuario:', balanceError.message);
+      ipBalance = 'N/A';
+      mockTokenBalance = 'N/A';
+    }
+    
+    // Obtener puzzles completados
+    let puzzlesCompleted = 0;
+    try {
+      const { getPuzzleCompletionsCount } = await import('../backend/services/puzzleTrackingService');
+      puzzlesCompleted = await getPuzzleCompletionsCount(userId);
+    } catch (puzzleError: any) {
+      console.warn('No se pudo obtener conteo de puzzles:', puzzleError.message);
+    }
+    
+    // Obtener regalías pendientes
+    let royaltiesPending = '0';
+    let royaltiesCount = 0;
+    try {
+      const { getPendingRoyaltiesByUser } = await import('../backend/services/royaltyService');
+      const pendingRoyalties = await getPendingRoyaltiesByUser(userId);
+      royaltiesCount = pendingRoyalties.length;
+      // Calcular monto total de regalías pendientes
+      const totalAmount = pendingRoyalties.reduce((sum, r) => sum + parseFloat(r.amount || '0'), 0);
+      royaltiesPending = totalAmount.toFixed(2);
+    } catch (royaltyError: any) {
+      console.warn('No se pudo obtener regalías pendientes:', royaltyError.message);
+    }
     
     const stats = {
-      ipsRegistered: userIPs.length,
-      puzzlesCompleted: 0, // TODO: Implementar tracking
-      royaltiesPending: '0', // TODO: Implementar cálculo
+      ipsRegistered: ipsFromBlockchain, // Usar conteo desde blockchain
+      puzzlesCompleted: puzzlesCompleted,
+      royaltiesPending: royaltiesPending,
+      balances: {
+        ip: ipBalance,
+        mockToken: mockTokenBalance,
+      },
     };
     
     statsMessage += `IPs Registrados: ${stats.ipsRegistered}\n`;
     statsMessage += `Rompecabezas Completados: ${stats.puzzlesCompleted}\n`;
-    statsMessage += `Regalías Pendientes: ${stats.royaltiesPending} IP`;
+    statsMessage += `Regalías Pendientes: ${stats.royaltiesPending} IP\n\n`;
+    statsMessage += `💰 Balances:\n`;
+    statsMessage += `   IP Nativo: ${stats.balances.ip} IP (para gas)\n`;
+    statsMessage += `   MockERC20: ${stats.balances.mockToken} tokens (para regalías)`;
   } catch (error: any) {
     console.error('Error obteniendo estadísticas del usuario:', error);
     // Fallback si falla
     statsMessage += 'IPs Registrados: 0\n';
     statsMessage += 'Rompecabezas Completados: 0\n';
-    statsMessage += 'Regalías Pendientes: 0 IP';
+    statsMessage += 'Regalías Pendientes: 0 IP\n';
+    statsMessage += '💰 Balance IP: N/A';
     statsMessage += '\n\n⚠️ No se pudieron cargar las estadísticas completas';
   }
   
@@ -140,32 +384,75 @@ bot.command('profile', async (ctx: Context) => {
 });
 
 bot.command('claim', async (ctx: Context) => {
+  const userId = ctx.from?.id;
   const webappUrl = process.env.TELEGRAM_WEBAPP_URL;
-  const replyOptions: any = {};
   
-  if (webappUrl && !webappUrl.includes('localhost')) {
-    replyOptions.reply_markup = {
-      inline_keyboard: [[
-        { text: '💳 Reclamar', web_app: { url: `${webappUrl}/claim` } }
-      ]]
-    };
+  if (!userId) {
+    await ctx.reply('❌ No se pudo identificar tu usuario.');
+    return;
   }
   
-  await ctx.reply(
-    '💰 Reclamar Regalías\n\n' +
-    'Tus regalías se distribuyen automáticamente según los términos de licencia.',
-    replyOptions
-  );
+  try {
+    // Reclamar regalías on-chain
+    const API_URL = process.env.API_URL || 'http://localhost:3001/api';
+    const claimResponse = await axios.post(`${API_URL}/royalties/claim`, {
+      telegramUserId: userId,
+    });
+    
+    if (claimResponse.data.success) {
+      const { totalAmount, totalClaimed, royaltiesClaimed, balances } = claimResponse.data;
+      
+      let message = `✅ Regalías Reclamadas Exitosamente\n\n`;
+      message += `💰 Total Reclamado: ${totalClaimed} IP\n`;
+      message += `📊 Regalías Procesadas: ${royaltiesClaimed}\n`;
+      
+      if (balances) {
+        message += `\n📊 Balances:\n`;
+        message += `Antes: ${parseFloat(balances.before).toFixed(4)} IP\n`;
+        message += `Después: ${parseFloat(balances.after).toFixed(4)} IP\n`;
+        message += `Diferencia: ${balances.difference} IP\n`;
+      }
+      
+      message += `\n💡 Las regalías ya están en tu wallet de Story Testnet.`;
+      
+      await ctx.reply(message);
+    } else {
+      await ctx.reply(
+        `ℹ️ ${claimResponse.data.message || 'No tienes regalías reclamables en este momento.'}`
+      );
+    }
+  } catch (error: any) {
+    console.error('Error reclamando regalías:', error);
+    const errorMsg = error.response?.data?.error || error.message || 'Error al reclamar regalías';
+    await ctx.reply(`❌ Error: ${errorMsg}`);
+  }
 });
 
 bot.command('report', async (ctx: Context) => {
-  const webappUrl = process.env.TELEGRAM_WEBAPP_URL;
   const replyOptions: any = {};
   
-  if (webappUrl && !webappUrl.includes('localhost')) {
+  const from = ctx.from;
+  if (from && LOGIN_URL && !LOGIN_URL.includes('localhost') && TOKEN) {
+    const userData = {
+      authDate: Math.floor(new Date().getTime() / 1000),
+      firstName: from.first_name || '',
+      lastName: from.last_name || '',
+      username: from.username || '',
+      id: from.id,
+      photoURL: '',
+    };
+    const hash = generateTelegramHash(userData);
+    const telegramAuthToken = jwt.sign(
+      { ...userData, hash },
+      TOKEN,
+      { algorithm: 'HS256' }
+    );
+    const encodedToken = encodeURIComponent(telegramAuthToken);
+    const url = `${LOGIN_URL}/report?telegramAuthToken=${encodedToken}`;
+    
     replyOptions.reply_markup = {
       inline_keyboard: [[
-        { text: '📝 Reportar', web_app: { url: `${webappUrl}/report` } }
+        { text: '📝 Reportar', web_app: { url } }
       ]]
     };
   }
@@ -179,7 +466,12 @@ bot.command('report', async (ctx: Context) => {
 
 // Manejo de mensajes con video
 bot.on(message('video'), async (ctx: Context) => {
-  const webappUrl = process.env.TELEGRAM_WEBAPP_URL;
+  // Verificar que ctx.message existe y tiene video
+  if (!ctx.message || !('video' in ctx.message)) {
+    console.warn('⚠️ Mensaje sin video recibido');
+    return;
+  }
+
   const video = ctx.message.video;
   const channelId = process.env.TELEGRAM_CHANNEL_ID || process.env.TELEGRAM_CHANNEL_LINK;
   
@@ -202,19 +494,38 @@ bot.on(message('video'), async (ctx: Context) => {
   
   const replyOptions: any = {};
   
-  if (webappUrl && !webappUrl.includes('localhost')) {
-    // Pasar metadatos del video a la webapp
-    const webappUrlWithParams = `${webappUrl}/upload?` + new URLSearchParams({
+  const from = ctx.from;
+  if (from && LOGIN_URL && !LOGIN_URL.includes('localhost') && TOKEN) {
+    // Generar token para el usuario
+    const userData = {
+      authDate: Math.floor(new Date().getTime() / 1000),
+      firstName: from.first_name || '',
+      lastName: from.last_name || '',
+      username: from.username || '',
+      id: from.id,
+      photoURL: '',
+    };
+    const hash = generateTelegramHash(userData);
+    const telegramAuthToken = jwt.sign(
+      { ...userData, hash },
+      TOKEN,
+      { algorithm: 'HS256' }
+    );
+    const encodedToken = encodeURIComponent(telegramAuthToken);
+    
+    // Pasar metadatos del video y token a la webapp
+    const params = new URLSearchParams({
       fileId: videoInfo.fileId,
       fileName: videoInfo.fileName,
       fileSizeMB: videoInfo.fileSize || '',
       durationMinutes: videoInfo.duration?.toString() || '',
       videoLink: videoLink,
-    }).toString();
+      telegramAuthToken: encodedToken,
+    });
     
     replyOptions.reply_markup = {
       inline_keyboard: [[
-        { text: '📤 Registrar IP', web_app: { url: webappUrlWithParams } }
+        { text: '📤 Registrar IP', web_app: { url: `${LOGIN_URL}/upload?${params.toString()}` } }
       ]]
     };
   }

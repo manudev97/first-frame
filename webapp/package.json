@@ -8,11 +8,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@dynamic-labs/ethereum": "^4.48.0",
+    "@dynamic-labs/sdk-react-core": "^4.48.0",
+    "@twa-dev/sdk": "latest",
+    "axios": "^1.6.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.21.1",
-    "@twa-dev/sdk": "latest",
-    "axios": "^1.6.2"
+    "viem": "^2.40.3"
   },
   "devDependencies": {
     "@types/react": "^18.2.45",
@@ -22,4 +25,3 @@
     "vite": "^5.0.8"
   }
 }
-
