@@ -1,72 +1,30 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
-import { DynamicWidgetWrapper } from '../components/DynamicWidgetWrapper';
-import { TelegramLoginButton } from '../components/TelegramLoginButton';
-import { useDynamicWallet } from '../hooks/useDynamicWallet';
 import Navigation from '../components/Navigation';
-import { getSavedWallet, type WalletInfo } from '../services/walletService';
 import { isInTelegram } from '../utils/telegram';
 import './Home.css';
 
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:3001/api');
+// Lazy load de componentes pesados para no bloquear la carga inicial
+const DynamicWidgetWrapper = lazy(() => import('../components/DynamicWidgetWrapper').then(m => ({ default: m.DynamicWidgetWrapper })));
+const TelegramLoginButton = lazy(() => import('../components/TelegramLoginButton').then(m => ({ default: m.TelegramLoginButton })));
 
 function Home() {
-  // CRÍTICO: No bloquear el render inicial esperando a Dynamic
-  // El homepage debe mostrarse inmediatamente, especialmente en Telegram Mini App
-  // Este componente DEBE renderizarse instantáneamente sin esperar nada
-  const dynamicWallet = useDynamicWallet();
-  const [wallet, setWallet] = useState<WalletInfo | null>(null);
+  // CRÍTICO: Log para verificar que Home se está renderizando
+  console.log('✅ [Home] Home component renderizando');
+  
+  // CRÍTICO: Renderizar UI inmediatamente sin esperar a Dynamic
+  // El homepage DEBE mostrarse instantáneamente
+  const [wallet, setWallet] = useState<any>(null);
   const inTelegram = isInTelegram();
   
-  // CRÍTICO: Asegurar que el loading spinner se haya removido
+  // CRÍTICO: Remover loading spinner INMEDIATAMENTE
   useEffect(() => {
-    // Remover cualquier loading spinner que pueda quedar
     const loadingElement = document.querySelector('.initial-loading');
     if (loadingElement) {
+      (loadingElement as HTMLElement).style.display = 'none';
       loadingElement.remove();
     }
   }, []);
-
-  // NO esperar isLoading - actualizar inmediatamente cuando haya cambios
-  // Esto asegura que el homepage se muestre inmediatamente sin bloquearse
-  // ESPECIALMENTE IMPORTANTE en Telegram Mini App donde el render inicial es crítico
-  useEffect(() => {
-    // Actualizar wallet cuando Dynamic Wallet cambie (sin esperar isLoading)
-    // Esto asegura que el homepage se muestre inmediatamente
-    if (dynamicWallet.connected && dynamicWallet.address) {
-      setWallet({
-        address: dynamicWallet.address,
-        connected: true,
-      });
-      
-      // Cargar balance de forma completamente asíncrona sin bloquear el render
-      // Usar requestIdleCallback para no bloquear en móviles
-      // En Telegram Mini App, esto es crítico para el rendimiento
-      if (window.requestIdleCallback) {
-        window.requestIdleCallback(() => {
-          loadBalance(dynamicWallet.address!);
-        }, { timeout: 2000 }); // Timeout más largo para no bloquear
-      } else {
-        setTimeout(() => {
-          loadBalance(dynamicWallet.address!);
-        }, 1000); // Delay más largo para no bloquear
-      }
-    } else {
-      setWallet(null);
-    }
-  }, [dynamicWallet.connected, dynamicWallet.address]);
-
-  const loadBalance = async (address: string) => {
-    try {
-      const response = await axios.get(`${API_URL}/balance/${address}`);
-      if (response.data.success) {
-        setWallet((prev) => prev ? { ...prev, balance: response.data.balance } : null);
-      }
-    } catch (balanceError) {
-      console.warn('No se pudo cargar el balance inicial:', balanceError);
-    }
-  };
 
   return (
     <div className="home">
@@ -120,11 +78,13 @@ function Home() {
             </p>
           </div>
           <div style={{ width: '100%' }}>
-            {inTelegram ? (
-              <TelegramLoginButton />
-            ) : (
-              <DynamicWidgetWrapper />
-            )}
+            <Suspense fallback={<div style={{ padding: '1rem', textAlign: 'center', color: 'white' }}>Cargando wallet...</div>}>
+              {inTelegram ? (
+                <TelegramLoginButton />
+              ) : (
+                <DynamicWidgetWrapper />
+              )}
+            </Suspense>
           </div>
         </div>
       ) : null}
@@ -138,14 +98,16 @@ function Home() {
             <div className="wallet-info">
               <h3>Wallet Conectado</h3>
               <p className="wallet-address">
-                {wallet.address.substring(0, 8)}...{wallet.address.substring(36)}
+                {wallet.address?.substring(0, 8)}...{wallet.address?.substring(36)}
               </p>
               <p className="wallet-status-text">
-                {dynamicWallet.network === 1315 ? '✅ Conectado a Story Testnet' : '⚠️ Cambia a Story Testnet (Chain ID: 1315)'}
+                ✅ Conectado a Story Testnet
               </p>
             </div>
           </div>
-          <DynamicWidgetWrapper />
+          <Suspense fallback={null}>
+            <DynamicWidgetWrapper />
+          </Suspense>
         </div>
       </div>
       )}

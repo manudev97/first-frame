@@ -11,16 +11,30 @@ export function initTelegramWebApp() {
     tg.setHeaderColor('#1A1A2E');
     tg.setBackgroundColor('#0F0F23');
     
-    // Optimizaciones para móviles
-    // Deshabilitar el botón de cerrar en móviles (mejor UX)
+    // CRÍTICO: Optimizaciones específicas para móviles
+    // En móvil, el WebView tiene restricciones diferentes que pueden afectar el sandbox
     if (tg.platform === 'android' || tg.platform === 'ios') {
       // Configuraciones específicas para móviles
       tg.enableClosingConfirmation = false;
+      
+      // CRÍTICO: Habilitar visualización completa en móvil
+      // Esto ayuda a que el sandbox se muestre correctamente
+      tg.expand();
+      
+      // Log específico para móvil
+      console.log('📱 Telegram WebApp inicializado en MÓVIL');
+      console.log('📱 Plataforma móvil:', tg.platform);
+      console.log('📱 initData disponible:', !!tg.initData);
+      console.log('📱 initData length:', tg.initData?.length || 0);
+      console.log('📱 URL actual:', window.location.href);
+      console.log('📱 Origin:', window.location.origin);
+    } else {
+      // Log para desktop
+      console.log('📱 Telegram WebApp inicializado en DESKTOP');
+      console.log('📱 Plataforma:', tg.platform);
     }
     
-    // Log para debug
-    console.log('📱 Telegram WebApp inicializado');
-    console.log('📱 Plataforma:', tg.platform);
+    // Log general
     console.log('📱 initData:', tg.initData ? '✅ Disponible' : '❌ Vacío');
     
     return tg;

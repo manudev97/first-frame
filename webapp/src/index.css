@@ -144,3 +144,53 @@ input, textarea, select {
   transform: translateY(-2px);
 }
 
+/* CRÍTICO: CSS para asegurar que los modales de Dynamic se muestren correctamente en móvil */
+/* IMPORTANTE: Solo aplicar a modales REALMENTE abiertos, no a todos los elementos */
+/* Esto evita bloquear los clics cuando no hay modales abiertos */
+
+/* Solo aplicar a iframes de Dynamic cuando están visibles (modales abiertos) */
+iframe[src*="dynamicauth.com"]:not([style*="display: none"]),
+iframe[src*="dynamic.xyz"]:not([style*="display: none"]) {
+  position: fixed !important;
+  z-index: 999999 !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+}
+
+/* Solo aplicar a overlays/modos de Dynamic cuando están activos */
+body > div[role="dialog"][aria-modal="true"],
+body > div[data-dynamic-modal="true"],
+body > div[class*="modal"][class*="open"],
+body > div[class*="Modal"][class*="open"],
+body > div[class*="overlay"][class*="active"],
+body > div[class*="Overlay"][class*="active"] {
+  z-index: 999999 !important;
+  position: fixed !important;
+}
+
+/* En móvil, asegurar que los modales abiertos se muestren correctamente */
+@media (max-width: 768px) {
+  /* Solo aplicar cuando el modal está realmente abierto */
+  iframe[src*="dynamicauth.com"]:not([style*="display: none"]),
+  iframe[src*="dynamic.xyz"]:not([style*="display: none"]),
+  body > div[role="dialog"][aria-modal="true"],
+  body > div[data-dynamic-modal="true"] {
+    position: fixed !important;
+    z-index: 2147483647 !important; /* Máximo z-index posible */
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}
+

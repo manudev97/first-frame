@@ -43,6 +43,10 @@ export default defineConfig(({ mode }) => {
         '.cloudflared.net',
         '.loca.lt',
       ],
+      // CRÍTICO: Deshabilitar HMR completamente para evitar problemas con WebSocket
+      // El WebSocket de HMR no funciona bien con ngrok y puede bloquear la carga
+      // En Telegram Mini App, HMR no es necesario ya que se recarga la app completa
+      hmr: false,
       // Proxy para redirigir peticiones de API al backend local
       proxy: {
         '/api': {
@@ -64,6 +68,36 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       outDir: 'dist',
+      // Optimizaciones para mejorar la carga inicial
+      rollupOptions: {
+        output: {
+          // Separar chunks para mejor caching
+          manualChunks: {
+            'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+            'dynamic-vendor': ['@dynamic-labs/sdk-react-core', '@dynamic-labs/ethereum'],
+          },
+        },
+      },
+      // Reducir el tamaño del bundle
+      minify: 'terser',
+      terserOptions: {
+        compress: {
+          drop_console: false, // Mantener console.log para debugging
+        },
+      },
+    },
+    // Optimizaciones para desarrollo
+    optimizeDeps: {
+      // Pre-bundlar dependencias comunes para carga más rápida
+      include: [
+        'react',
+        'react-dom',
+        'react-router-dom',
+        '@dynamic-labs/sdk-react-core',
+        '@dynamic-labs/ethereum',
+      ],
+      // Excluir dependencias que causan problemas
+      exclude: [],
     },
   };
 });

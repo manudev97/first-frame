@@ -8,6 +8,9 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- CRÍTICO: CSP para permitir iframe de Dynamic en Telegram Mini App -->
+    <!-- Específicamente permitir app.dynamicauth.com para el sandbox -->
+    <meta http-equiv="Content-Security-Policy" content="frame-src 'self' https://app.dynamicauth.com https://*.dynamicauth.com *; connect-src 'self' https://app.dynamicauth.com https://*.dynamicauth.com https://*.dynamic.xyz * wss://* ws://*; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://telegram.org *; style-src 'self' 'unsafe-inline' *; img-src * data: blob:; font-src *;">
     <title>FirstFrame - Protección de IP</title>
     <!-- Telegram WebApp SDK - Cargar antes de React para mejor rendimiento -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -50,6 +53,39 @@
         </div>
       </div>
     </div>
+    <!-- CRÍTICO: Ignorar errores de WebSocket de Vite HMR -->
+    <!-- Vite intenta conectarse a WebSocket para HMR pero ngrok no lo soporta bien -->
+    <!-- Este script previene que los errores de WebSocket bloqueen la carga -->
+    <script>
+      // Interceptar y silenciar errores de WebSocket de Vite
+      window.addEventListener('error', function(e) {
+        if (e.message && (
+          e.message.includes('WebSocket') || 
+          e.message.includes('websocket') ||
+          e.message.includes('wss://') ||
+          e.message.includes('failed to connect')
+        )) {
+          e.preventDefault();
+          e.stopPropagation();
+          // Silenciar el error - no es crítico para la funcionalidad
+          return false;
+        }
+      }, true);
+      
+      // También interceptar errores no capturados
+      window.addEventListener('unhandledrejection', function(e) {
+        if (e.reason && (
+          e.reason.message && (
+            e.reason.message.includes('WebSocket') ||
+            e.reason.message.includes('websocket') ||
+            e.reason.message.includes('wss://')
+          )
+        )) {
+          e.preventDefault();
+          // Silenciar el error
+        }
+      });
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

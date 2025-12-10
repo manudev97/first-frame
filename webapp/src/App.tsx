@@ -1,90 +1,127 @@
-import { useEffect } from 'react';
+import React, { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import ErrorBoundary from './components/ErrorBoundary';
-import { DynamicProvider } from './components/DynamicProvider';
-import { initTelegramWebApp } from './utils/telegram';
-import Home from './pages/Home';
-import Upload from './pages/Upload';
-import Puzzle from './pages/Puzzle';
-import Profile from './pages/Profile';
-import Claim from './pages/Claim';
-import Report from './pages/Report';
-import Marketplace from './pages/Marketplace';
+import { setupInsideIframe } from '@dynamic-labs/utils';
+import { isInTelegram } from './utils/telegram';
+
+// CRÍTICO: Lazy load de DynamicProvider para no bloquear la carga inicial
+// Dynamic es pesado y puede ralentizar significativamente la carga
+const DynamicProvider = lazy(() => import('./components/DynamicProvider').then(m => ({ default: m.DynamicProvider })));
+
+// Lazy load de páginas para mejor rendimiento
+const Home = lazy(() => import('./pages/Home'));
+const Upload = lazy(() => import('./pages/Upload'));
+const Puzzle = lazy(() => import('./pages/Puzzle'));
+const Profile = lazy(() => import('./pages/Profile'));
+const Claim = lazy(() => import('./pages/Claim'));
+const Report = lazy(() => import('./pages/Report'));
+const Marketplace = lazy(() => import('./pages/Marketplace'));
+
+// Componente de fallback visible para Suspense
+const LoadingFallback = () => (
+  <div style={{
+    minHeight: '100vh',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    color: 'white',
+    textAlign: 'center',
+    padding: '2rem',
+  }}>
+    <div>
+      <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎬</div>
+      <p>Cargando FirstFrame...</p>
+    </div>
+  </div>
+);
 
 function App() {
-  // CRÍTICO: Remover loading spinner inmediatamente cuando App se monte
-  // Esto es esencial para evitar el bucle de carga en Telegram Mini App
+  // CRÍTICO: Log para verificar que App se está renderizando
+  console.log('✅ [APP] App component renderizando');
+  // CRÍTICO: setupInsideIframe también se llama aquí como backup
+  // Ya se llama en main.tsx ANTES de React, pero esto asegura que se ejecute
   useEffect(() => {
-    // Remover cualquier loading spinner que pueda quedar
+    if (isInTelegram()) {
+      // Ejecutar de forma asíncrona para no bloquear el render
+      setTimeout(() => {
+        try {
+          // Asegurar que initial-parent-url esté en la URL
+          const currentUrl = new URL(window.location.href);
+          if (!currentUrl.searchParams.has('initial-parent-url')) {
+            const baseUrl = window.location.origin + window.location.pathname;
+            currentUrl.searchParams.set('initial-parent-url', encodeURIComponent(baseUrl));
+            window.history.replaceState({}, '', currentUrl.toString());
+            console.log('📱 [APP] initial-parent-url agregado a la URL (backup)');
+          }
+          
+          // Verificar si ya se ejecutó en main.tsx
+          const alreadySetup = (window as any).__dynamicIframeSetup;
+          if (!alreadySetup) {
+            try {
+              setupInsideIframe();
+              (window as any).__dynamicIframeSetup = true;
+              const platform = window.Telegram?.WebApp?.platform;
+              console.log('✅ [APP] Dynamic iframe setup configurado (backup)');
+              console.log('📱 [APP] Plataforma:', platform);
+              console.log('📱 [APP] Es móvil:', platform === 'android' || platform === 'ios');
+            } catch (setupError) {
+              console.warn('⚠️ [APP] Error ejecutando setupInsideIframe (no crítico):', setupError);
+              // No bloquear - continuar de todos modos
+            }
+          } else {
+            console.log('✅ [APP] Dynamic iframe setup ya estaba configurado');
+          }
+        } catch (error) {
+          console.warn('⚠️ [APP] Error configurando Dynamic iframe setup (no crítico):', error);
+          // No bloquear - la app debe cargar de todos modos
+        }
+      }, 100); // Pequeño delay para no bloquear el render inicial
+    }
+  }, []);
+
+  // CRÍTICO: Remover loading spinner INMEDIATAMENTE
+  useEffect(() => {
     const loadingElement = document.querySelector('.initial-loading');
     if (loadingElement) {
+      (loadingElement as HTMLElement).style.display = 'none';
       loadingElement.remove();
     }
   }, []);
 
-  // Inicializar Telegram WebApp de forma asíncrona para no bloquear el render
+  // Inicializar Telegram WebApp de forma MUY asíncrona para no bloquear
   useEffect(() => {
-    // Usar requestIdleCallback o setTimeout para no bloquear el render inicial
-    const initTelegram = () => {
+    // Ejecutar MUY después para no bloquear el render inicial
+    setTimeout(() => {
       try {
-        initTelegramWebApp();
-        
-        // Log detallado para debug en Telegram (después del render inicial)
-        if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
-          const tg = window.Telegram.WebApp;
-          console.log('📱 Telegram WebApp inicializado');
-          console.log('📱 Plataforma:', tg.platform);
-          console.log('📱 initData disponible:', !!tg.initData);
-          console.log('📱 initData length:', tg.initData?.length || 0);
-          console.log('📱 Usuario:', tg.initDataUnsafe?.user);
-          console.log('📱 Query ID:', tg.initDataUnsafe?.query_id);
-          
-          // Verificar token en URL
-          const urlParams = new URLSearchParams(window.location.search);
-          const tokenFromUrl = urlParams.get('telegramAuthToken');
-          if (tokenFromUrl) {
-            console.log('✅ Token de Telegram encontrado en URL');
-            console.log('📱 Token length:', tokenFromUrl.length);
-          } else {
-            console.log('ℹ️ No se encontró token en URL');
-          }
-          
-          // Verificar si initData está vacío (problema común)
-          if (!tg.initData || tg.initData.length === 0) {
-            console.warn('⚠️ ADVERTENCIA: initData está vacío');
-            console.warn('⚠️ Dynamic puede usar el token de la URL como alternativa');
-          }
-        }
+        import('./utils/telegram').then(({ initTelegramWebApp }) => {
+          initTelegramWebApp();
+        });
       } catch (error) {
-        console.error('Error inicializando Telegram WebApp:', error);
+        // Silenciar errores - no crítico
       }
-    };
-
-    // Inicializar inmediatamente pero no bloquear el render
-    // En Telegram Mini App, esto puede bloquear si se hace síncronamente
-    if (window.requestIdleCallback) {
-      window.requestIdleCallback(initTelegram, { timeout: 100 });
-    } else {
-      // Fallback: setTimeout con delay mínimo
-      setTimeout(initTelegram, 0);
-    }
+    }, 2000); // Delay largo para no bloquear
   }, []);
 
   return (
     <ErrorBoundary>
-      <DynamicProvider>
-        <Router>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/upload" element={<Upload />} />
-            <Route path="/puzzle" element={<Puzzle />} />
-            <Route path="/marketplace" element={<Marketplace />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/claim" element={<Claim />} />
-            <Route path="/report" element={<Report />} />
-          </Routes>
-        </Router>
-      </DynamicProvider>
+      <Suspense fallback={<LoadingFallback />}>
+        <DynamicProvider>
+          <Router>
+            <Suspense fallback={<LoadingFallback />}>
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/upload" element={<Upload />} />
+                <Route path="/puzzle" element={<Puzzle />} />
+                <Route path="/marketplace" element={<Marketplace />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/claim" element={<Claim />} />
+                <Route path="/report" element={<Report />} />
+              </Routes>
+            </Suspense>
+          </Router>
+        </DynamicProvider>
+      </Suspense>
     </ErrorBoundary>
   );
 }
