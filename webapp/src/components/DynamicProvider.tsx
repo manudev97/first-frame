@@ -1,5 +1,5 @@
 // Componente que carga Dynamic Wallet de forma lazy para no bloquear la carga inicial
-import { Suspense, useState, useEffect, ReactNode } from 'react';
+import { useEffect, ReactNode } from 'react';
 import { DynamicContextProvider } from '@dynamic-labs/sdk-react-core';
 import { EthereumWalletConnectors } from '@dynamic-labs/ethereum';
 
@@ -51,22 +51,46 @@ export function DynamicProvider({ children }: DynamicProviderProps) {
       }
 
       // Verificar CORS de forma asíncrona
-      const checkCorsError = () => {
-        window.addEventListener('error', (event) => {
-          const message = event.message || '';
-          if (message.includes('CORS') || message.includes('Access-Control-Allow-Origin')) {
-            console.error('❌ ERROR DE CORS DETECTADO!');
-            console.error('   Tu dominio NO está en la lista de CORS permitidos en Dynamic Dashboard.');
-            console.error('   Dominio actual:', window.location.origin);
-            console.error('   Solución:');
-            console.error('   1. Ve a https://app.dynamic.xyz/dashboard/security/cors');
-            console.error('   2. Agrega este dominio:', window.location.origin);
-            console.error('   3. IMPORTANTE: NO agregues "/" al final');
-            console.error('   4. Guarda los cambios y espera 10-30 segundos');
-          }
-        });
-      };
-      checkCorsError();
+          const checkCorsError = () => {
+            // Verificar errores de CORS en la consola
+            window.addEventListener('error', (event) => {
+              const message = event.message || '';
+              if (message.includes('CORS') || message.includes('Access-Control-Allow-Origin')) {
+                console.error('❌❌❌ ERROR DE CORS DETECTADO! ❌❌❌');
+                console.error('   Tu dominio NO está en la lista de CORS permitidos en Dynamic Dashboard.');
+                console.error('   Dominio actual:', window.location.origin);
+                console.error('   ⚠️ ESTO IMPIDE QUE EL SANDBOX SE ABRA ⚠️');
+                console.error('   Solución URGENTE:');
+                console.error('   1. Ve a https://app.dynamic.xyz/dashboard/security/cors');
+                console.error('   2. Agrega este dominio EXACTAMENTE:', window.location.origin);
+                console.error('   3. IMPORTANTE: NO agregues "/" al final');
+                console.error('   4. Guarda los cambios y espera 1-2 MINUTOS');
+                console.error('   5. Recarga la mini app después de esperar');
+                
+                // Log del error - showAlert no está disponible en el tipo de Telegram WebApp
+                console.warn('⚠️ Error de CORS detectado - verifica la consola para más detalles');
+              }
+            });
+
+            // También verificar errores de fetch que pueden ser CORS
+            const originalFetch = window.fetch;
+            window.fetch = async (...args) => {
+              try {
+                const response = await originalFetch(...args);
+                return response;
+              } catch (error: any) {
+                if (error.message && error.message.includes('CORS')) {
+                  console.error('❌❌❌ ERROR DE CORS EN FETCH! ❌❌❌');
+                  console.error('   URL:', args[0]);
+                  console.error('   Dominio actual:', window.location.origin);
+                  console.error('   Ve a https://app.dynamic.xyz/dashboard/security/cors');
+                  console.error('   Agrega:', window.location.origin);
+                }
+                throw error;
+              }
+            };
+          };
+          checkCorsError();
     };
     
     // Ejecutar después de que el render inicial esté completo
@@ -129,16 +153,6 @@ export function DynamicProvider({ children }: DynamicProviderProps) {
         // Esto evita que el sandbox se quede en ciclo infinito
         redirectUrl: getRedirectUrl(),
         
-        // Habilitar Telegram Auto-Wallets cuando estemos en Telegram
-        // Esto permite crear wallets automáticamente sin extensiones
-        // TEMPORAL: Habilitado solo cuando tengamos session keys
-        enableSocialSignIn: false, // Deshabilitado temporalmente hasta recibir session keys
-        
-        // SOLUCIÓN TEMPORAL: Habilitar login por email mientras esperamos session keys
-        // Los usuarios pueden registrarse con email y verificar con código
-        enableEmailSignIn: true, // Habilitado para login temporal
-        enableSmsSignIn: false, // Mantener deshabilitado
-        
         // CRÍTICO para móvil: Configuración específica para evitar problemas con el sandbox
         // En Telegram móvil, el WebView tiene restricciones diferentes que pueden causar
         // que el sandbox no se abra o se quede en ciclo infinito
@@ -153,13 +167,6 @@ export function DynamicProvider({ children }: DynamicProviderProps) {
         // Y maneja el login automáticamente
         // Embedded Wallets (MPC) se habilitan automáticamente con EthereumWalletConnectors
         // Esto permite crear wallets sin necesidad de extensiones de navegador
-        
-        // CRÍTICO: Configuración específica para móvil - asegurar que los modales se muestren
-        // En móvil, el WebView puede tener problemas para mostrar modales si no están configurados correctamente
-        appSettings: {
-          // Asegurar que los modales se muestren correctamente en móvil
-          // Esto es especialmente importante para Telegram Mini Apps
-        },
       }}
     >
       {children}

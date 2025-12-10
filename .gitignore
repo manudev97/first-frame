@@ -11,3 +11,4 @@ webapp/.vite/
 docs/
 docs_context/
 
+.vercel

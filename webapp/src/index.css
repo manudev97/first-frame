@@ -101,6 +101,15 @@ input, textarea, select {
   }
 }
 
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Clases de utilidad globales */
 .btn-primary {
   padding: 1rem 2rem;

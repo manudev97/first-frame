@@ -79,12 +79,15 @@ export default defineConfig(({ mode }) => {
         },
       },
       // Reducir el tamaño del bundle
-      minify: 'terser',
-      terserOptions: {
-        compress: {
-          drop_console: false, // Mantener console.log para debugging
-        },
-      },
+      // Usar 'esbuild' que viene incluido con Vite (más rápido)
+      // O 'terser' si necesitas más opciones (requiere instalar terser)
+      minify: 'esbuild', // Cambiado a esbuild que viene con Vite
+      // terserOptions solo se usa si minify es 'terser'
+      // terserOptions: {
+      //   compress: {
+      //     drop_console: false, // Mantener console.log para debugging
+      //   },
+      // },
     },
     // Optimizaciones para desarrollo
     optimizeDeps: {

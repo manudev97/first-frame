@@ -4,7 +4,7 @@ import { DynamicWidgetWrapper } from '../components/DynamicWidgetWrapper';
 import { useDynamicWallet } from '../hooks/useDynamicWallet';
 import Navigation from '../components/Navigation';
 import { getTelegramUser } from '../utils/telegram';
-import { getSavedWallet, type WalletInfo } from '../services/walletService';
+import { getSavedWallet } from '../services/walletService';
 import './Profile.css';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:3001/api');
@@ -20,6 +20,7 @@ interface WalletInfo {
   address?: string;
   connected: boolean;
   balance?: string;
+  mockTokenBalance?: string;
 }
 
 interface IPAsset {
@@ -404,8 +405,10 @@ function Profile() {
                 <button 
                   className="btn-copy-address"
                   onClick={() => {
-                    navigator.clipboard.writeText(wallet.address);
-                    alert('✅ Dirección copiada al portapapeles');
+                    if (wallet.address) {
+                      navigator.clipboard.writeText(wallet.address);
+                      alert('✅ Dirección copiada al portapapeles');
+                    }
                   }}
                   title="Copiar dirección"
                 >

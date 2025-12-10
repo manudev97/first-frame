@@ -33,17 +33,20 @@ export function useDynamicWallet(): DynamicWalletInfo {
   // Solo recalcular cuando cambien los valores relevantes
   const walletInfo = useMemo(() => {
     const primaryWallet = contextData.primaryWallet;
-    const isAuthenticated = contextData.isAuthenticated;
+    // Verificar autenticación usando primaryWallet en lugar de isAuthenticated
+    const isAuthenticated = !!primaryWallet && !!primaryWallet.address;
     const network = contextData.network;
     
     if (primaryWallet && isAuthenticated) {
       const address = primaryWallet.address || null;
+      // Asegurar que network sea number o null
+      const networkNumber = typeof network === 'number' ? network : (typeof network === 'string' ? parseInt(network, 10) : null);
       
       return {
         address,
         connected: !!address && isAuthenticated,
         primaryWallet,
-        network: network || null,
+        network: networkNumber,
         isLoading: false,
       };
     }
@@ -57,7 +60,6 @@ export function useDynamicWallet(): DynamicWalletInfo {
     };
   }, [
     contextData.primaryWallet?.address,
-    contextData.isAuthenticated,
     contextData.network,
   ]);
 
