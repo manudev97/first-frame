@@ -34,37 +34,44 @@ export function useDynamicWallet(): DynamicWalletInfo {
   const walletInfo = useMemo(() => {
     const primaryWallet = contextData.primaryWallet;
     const user = contextData.user;
-    // CRÍTICO: Verificar autenticación usando user y primaryWallet
-    // Un usuario está autenticado si tiene un user object Y una wallet conectada
-    const isAuthenticated = !!user && !!primaryWallet && !!primaryWallet.address;
     const network = contextData.network;
     
-    // Verificar que el usuario esté autenticado Y tenga una wallet conectada
-    if (isAuthenticated && primaryWallet && primaryWallet.address) {
+    // CRÍTICO: Verificar si hay una wallet conectada
+    // Una wallet está conectada si tiene una address válida
+    // No requerimos user para considerar la wallet conectada (puede estar cargando)
+    const hasWalletAddress = !!primaryWallet && !!primaryWallet.address;
+    const hasUser = !!user;
+    
+    // Si hay wallet address, considerarla conectada (incluso si user aún no está disponible)
+    if (hasWalletAddress) {
       const address = primaryWallet.address || null;
       // Asegurar que network sea number o null
       const networkNumber = typeof network === 'number' ? network : (typeof network === 'string' ? parseInt(network, 10) : null);
       
-      console.log('✅ [useDynamicWallet] Usuario autenticado y wallet conectada:', {
+      console.log('✅ [useDynamicWallet] Wallet conectada:', {
         address,
         network: networkNumber,
-        hasUser: !!user,
+        hasUser,
         userId: user?.userId,
+        email: user?.email,
       });
       
       return {
         address,
-        connected: true, // Usuario autenticado Y wallet conectada
+        connected: true, // Wallet tiene address = está conectada
         primaryWallet,
         network: networkNumber,
         isLoading: false,
       };
     }
     
-    console.log('⚠️ [useDynamicWallet] Usuario no autenticado o sin wallet:', {
-      hasUser: !!user,
+    // Log detallado para debugging
+    console.log('⚠️ [useDynamicWallet] Wallet no conectada:', {
+      hasUser,
       hasPrimaryWallet: !!primaryWallet,
       hasAddress: !!primaryWallet?.address,
+      primaryWalletType: primaryWallet ? typeof primaryWallet : 'null',
+      addressValue: primaryWallet?.address,
     });
     
     return {
@@ -75,8 +82,8 @@ export function useDynamicWallet(): DynamicWalletInfo {
       isLoading: false,
     };
   }, [
-    contextData.user?.userId, // CRÍTICO: Incluir user en las dependencias
-    contextData.primaryWallet?.address,
+    contextData.user?.userId, // Incluir user para detectar cuando se autentica
+    contextData.primaryWallet?.address, // CRÍTICO: Incluir address para detectar cuando se conecta
     contextData.network,
   ]);
 

@@ -47,7 +47,7 @@ const PORT = process.env.PORT || 3001;
 // Log del puerto al iniciar
 console.log(`📡 Backend configurado para puerto: ${PORT}`);
 
-// Configurar CORS para permitir peticiones desde ngrok y otros dominios
+// Configurar CORS para permitir peticiones desde ngrok, Vercel y otros dominios
 app.use(cors({
   origin: [
     'http://localhost:5173',
@@ -57,8 +57,12 @@ app.use(cors({
     /\.ngrok\.app$/,
     /\.cloudflared\.net$/,
     /\.loca\.lt$/,
+    /\.vercel\.app$/, // Permitir todos los dominios de Vercel
+    'https://my-app-firstframe.vercel.app', // Dominio específico de producción
   ],
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json());
 
