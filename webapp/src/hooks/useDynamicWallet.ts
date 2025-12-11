@@ -31,19 +31,39 @@ export function useDynamicWallet(): DynamicWalletInfo {
 
   // Estado para forzar re-render cuando la wallet se conecte
   const [forceUpdate, setForceUpdate] = useState(0);
+  const [cachedAddress, setCachedAddress] = useState<string | null>(null);
   
   // CRÍTICO: Usar useEffect para detectar cuando la wallet se conecta
   // Esto asegura que detectemos la wallet incluso si se conecta después del render inicial
   useEffect(() => {
-    const primaryWallet = contextData.primaryWallet;
-    if (primaryWallet?.address) {
-      const address = primaryWallet.address;
-      if (address && address.startsWith('0x') && address.length === 42) {
-        console.log('🔄 [useDynamicWallet] Wallet detectada, actualizando estado:', address);
-        setForceUpdate(prev => prev + 1);
+    const checkWallet = () => {
+      const primaryWallet = contextData.primaryWallet;
+      
+      // Verificar si hay address disponible
+      if (primaryWallet?.address) {
+        const address = primaryWallet.address;
+        if (address && typeof address === 'string' && address.startsWith('0x') && address.length === 42) {
+          if (cachedAddress !== address) {
+            console.log('🔄 [useDynamicWallet] Wallet detectada, actualizando estado:', address);
+            setCachedAddress(address);
+            setForceUpdate(prev => prev + 1);
+          }
+        }
+      } else if (cachedAddress) {
+        // Si antes había address y ahora no, limpiar
+        console.log('⚠️ [useDynamicWallet] Wallet desconectada');
+        setCachedAddress(null);
       }
-    }
-  }, [contextData.primaryWallet?.address]);
+    };
+    
+    // Verificar inmediatamente
+    checkWallet();
+    
+    // Verificar periódicamente para detectar cuando la wallet se conecta
+    const interval = setInterval(checkWallet, 1000); // Verificar cada 1 segundo
+    
+    return () => clearInterval(interval);
+  }, [contextData.primaryWallet, contextData.primaryWallet?.address, cachedAddress]);
   
   // CRÍTICO: Usar useMemo para evitar re-renders innecesarios
   // Solo recalcular cuando cambien los valores relevantes
@@ -52,9 +72,9 @@ export function useDynamicWallet(): DynamicWalletInfo {
     const user = contextData.user;
     const network = contextData.network;
     
-    // CRÍTICO: Obtener address directamente de primaryWallet.address
-    // Según la documentación de Dynamic, primaryWallet tiene la propiedad address directamente
-    const walletAddress = primaryWallet?.address || null;
+    // CRÍTICO: Obtener address de primaryWallet.address o del cache
+    // Usar cache como fallback si primaryWallet.address no está disponible inmediatamente
+    const walletAddress = primaryWallet?.address || cachedAddress || null;
     
     // CRÍTICO: Una wallet está conectada si tiene una address válida
     // Validar que sea una dirección Ethereum válida (0x + 40 caracteres hex)

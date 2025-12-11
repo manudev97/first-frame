@@ -140,20 +140,25 @@ function Upload() {
       const uploaderId = telegramUser ? `TelegramUser_${telegramUser.id}` : 'Anonymous';
       
       // CRÍTICO: Obtener wallet del usuario para pagar el fee (usar Dynamic Wallet)
-      // Verificar de múltiples formas para asegurar que detectamos la wallet
+      // Usar la address del hook, o directamente de primaryWallet si está disponible
       const walletAddress = dynamicWallet.address || 
-                           dynamicWallet.primaryWallet?.address || 
-                           dynamicWallet.primaryWallet?.accounts?.[0]?.address;
+                           dynamicWallet.primaryWallet?.address ||
+                           null;
       
-      if (!dynamicWallet.connected || !walletAddress) {
-        console.error('❌ [Upload] Wallet no conectada:', {
-          connected: dynamicWallet.connected,
-          address: dynamicWallet.address,
-          primaryWallet: dynamicWallet.primaryWallet,
-          primaryWalletAddress: dynamicWallet.primaryWallet?.address,
-          accounts: dynamicWallet.primaryWallet?.accounts,
-        });
-        throw new Error('Debes conectar tu wallet primero para registrar IPs. Ve a tu perfil y conecta tu wallet de Dynamic.');
+      // CRÍTICO: Log detallado para debugging
+      console.log('🔍 [Upload] Verificando wallet:', {
+        connected: dynamicWallet.connected,
+        address: dynamicWallet.address,
+        hasPrimaryWallet: !!dynamicWallet.primaryWallet,
+        primaryWalletAddress: dynamicWallet.primaryWallet?.address,
+        connectorAddress: dynamicWallet.primaryWallet?.connector?.address,
+        walletAddress,
+        primaryWalletKeys: dynamicWallet.primaryWallet ? Object.keys(dynamicWallet.primaryWallet).slice(0, 10) : [],
+      });
+      
+      if (!walletAddress) {
+        console.error('❌ [Upload] Wallet no conectada - no se pudo obtener address');
+        throw new Error('Debes conectar tu wallet primero para registrar IPs. Ve a tu perfil y conecta tu wallet de Dynamic. Si ya la conectaste, espera unos segundos y recarga la página.');
       }
       
       // Verificar que esté en la red correcta
