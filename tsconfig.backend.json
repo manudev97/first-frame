@@ -2,10 +2,10 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist/backend",
-    "rootDir": "./src/backend",
+    "rootDir": "./src",
     "noImplicitAny": false,
     "skipLibCheck": true
   },
-  "include": ["src/backend/**/*"]
+  "include": ["src/backend/**/*", "src/bot/**/*", "src/shared/**/*"]
 }
 
