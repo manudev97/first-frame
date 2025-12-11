@@ -178,6 +178,8 @@ function Home() {
         <Link 
           to="/marketplace" 
           className="action-card green-lila"
+          // CRÍTICO: Marketplace NO requiere wallet - es público
+          // No agregar disabled ni onClick que bloqueen el acceso
         >
           <div className="icon">🛒</div>
           <h3>Marketplace</h3>
