@@ -191,7 +191,7 @@ export async function handleVideoForward(
     fileName: video.file_name || 'video.mp4',
     fileSizeMB: video.file_size ? (video.file_size / (1024 * 1024)).toFixed(2) : '',
     durationMinutes: video.duration ? (video.duration / 60).toFixed(1) : '',
-    videoLink: `https://t.me/c/${ctx.chat?.id}/${ctx.message.message_id}`,
+    videoLink: `https://t.me/c/${ctx.chat?.id}/${ctx.message?.message_id || 0}`,
   };
 
   // Responder al usuario indicando que el video será procesado
