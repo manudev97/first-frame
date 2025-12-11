@@ -280,6 +280,17 @@ router.post('/forward-to-channel', async (req, res) => {
                   ip.uploaderName = uploaderName; // Guardar nombre del uploader
                   await saveRegisteredIP(ip);
                   console.log(`✅ Channel message ID, video file ID y uploaderName guardados para IP ${ipId}`);
+                  
+                  // CRÍTICO: Limpiar caché del marketplace para que el IP aparezca como disponible inmediatamente
+                  try {
+                    const { clearMarketplaceCache } = await import('../services/marketplaceCache');
+                    clearMarketplaceCache();
+                    console.log('✅ Caché del marketplace limpiado después de actualizar IP con channelMessageId');
+                  } catch (cacheError) {
+                    console.warn('⚠️  No se pudo limpiar caché del marketplace:', cacheError);
+                  }
+                } else {
+                  console.warn(`⚠️  IP ${ipId} no encontrado en registry. Puede que no se haya guardado correctamente durante el registro.`);
                 }
               } catch (saveError: any) {
                 console.warn('⚠️  No se pudo guardar channelMessageId en registry:', saveError.message);

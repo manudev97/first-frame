@@ -177,9 +177,13 @@ function Home() {
 
         <Link 
           to="/marketplace" 
-          className="action-card green-lila"
-          // CRÍTICO: Marketplace NO requiere wallet - es público
-          // No agregar disabled ni onClick que bloqueen el acceso
+          className={`action-card green-lila ${!walletConnected ? 'disabled' : ''}`}
+          onClick={(e) => {
+            if (!walletConnected) {
+              e.preventDefault();
+              alert('⚠️ Primero debes conectar tu wallet para acceder al marketplace');
+            }
+          }}
         >
           <div className="icon">🛒</div>
           <h3>Marketplace</h3>

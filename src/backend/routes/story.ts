@@ -161,6 +161,15 @@ router.post('/register-ip', async (req, res) => {
                   uploader: req.body.uploader,
                   uploaderName: req.body.uploaderName, // Guardar nombre del uploader
                 });
+                
+                // CRÍTICO: Limpiar caché del marketplace para que el nuevo IP aparezca inmediatamente
+                try {
+                  const { clearMarketplaceCache } = await import('../services/marketplaceCache');
+                  clearMarketplaceCache();
+                  console.log('✅ Caché del marketplace limpiado después de registrar IP');
+                } catch (cacheError) {
+                  console.warn('⚠️  No se pudo limpiar caché del marketplace:', cacheError);
+                }
               }
             } catch (saveError) {
               console.warn('No se pudo actualizar IP en registry con IP ID correcto (no crítico):', saveError);
