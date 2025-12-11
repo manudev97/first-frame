@@ -112,7 +112,7 @@ export async function getIPDetailsFromTransaction(
       // El evento IPAssetRegistered tiene el IP ID como primer topic (indexed)
       // Buscar logs que no sean del contrato NFT y que tengan un address en el primer topic
       for (const log of receipt.logs) {
-        if (log.address.toLowerCase() !== spgNftContract.toLowerCase() && 
+        if (log && log.address && log.topics && log.address.toLowerCase() !== spgNftContract.toLowerCase() && 
             log.topics.length >= 1) {
           // El primer topic podría ser el IP ID (si es un evento IPAssetRegistered)
           const potentialIpId = '0x' + log.topics[0].slice(-40);
@@ -120,7 +120,7 @@ export async function getIPDetailsFromTransaction(
           if (potentialIpId !== '0x0000000000000000000000000000000000000000' &&
               potentialIpId.length === 42) {
             // Verificar que el segundo topic sea el contrato NFT (nftContract)
-            if (log.topics.length >= 2) {
+            if (log.topics.length >= 2 && log.topics[1]) {
               const nftContractInEvent = '0x' + log.topics[1].slice(-40);
               if (nftContractInEvent.toLowerCase() === spgNftContract.toLowerCase()) {
                 ipId = potentialIpId;

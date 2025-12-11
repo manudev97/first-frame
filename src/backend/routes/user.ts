@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getIPsByUploader } from '../services/ipRegistry';
 import { getIPCountByAddress, getIPsByAddress } from '../services/blockchainIPService';
+import { getStoryBalance } from '../services/balanceService';
 import crypto from 'crypto';
 
 const router = Router();

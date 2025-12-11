@@ -12,7 +12,7 @@
     "build:bot": "tsc -p tsconfig.bot.json",
     "build:webapp": "cd webapp && npm run build",
     "build:backend": "tsc -p tsconfig.backend.json",
-    "start": "node dist/index.js",
+    "start": "node dist/backend/index.js",
     "get-spg-contract": "tsx scripts/get-spg-contract.ts"
   },
   "keywords": [

@@ -78,13 +78,14 @@ router.post('/forward-to-channel', async (req, res) => {
     // PRIORIDAD: Usar TELEGRAM_CHANNEL_ID si está disponible (es más confiable)
     const channelId = process.env.TELEGRAM_CHANNEL_ID || process.env.TELEGRAM_CHANNEL_LINK;
     let channelMessageId: number | null = null;
+    let finalChannelId: string | number | null = null;
 
     const bot = getBotInstance();
     if (bot && channelId) {
       try {
         // IMPORTANTE: Si TELEGRAM_CHANNEL_ID está configurado, usarlo directamente
         // Si solo hay TELEGRAM_CHANNEL_LINK, intentar extraer el ID o username
-        let finalChannelId: string | number = channelId;
+        finalChannelId = channelId;
         
         // Si es un ID numérico directo (sin prefijo), verificar si necesita el prefijo -100
         if (/^-?\d+$/.test(channelId.trim())) {
@@ -213,7 +214,7 @@ router.post('/forward-to-channel', async (req, res) => {
         console.error('Detalles del error:', forwardError.response?.data || forwardError.message);
         
         // Si el error es "chat not found" y usamos el prefijo -100, intentar sin prefijo
-        if (forwardError.message.includes('chat not found') && typeof finalChannelId === 'string' && finalChannelId.startsWith('-100')) {
+        if (finalChannelId && forwardError.message.includes('chat not found') && typeof finalChannelId === 'string' && finalChannelId.startsWith('-100')) {
           try {
             const idWithoutPrefix = finalChannelId.replace('-100', '');
             console.log(`🔄 Intentando con ID sin prefijo: ${idWithoutPrefix}`);

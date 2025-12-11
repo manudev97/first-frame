@@ -1,7 +1,9 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "outDir": "./dist/backend"
+    "outDir": "./dist/backend",
+    "noImplicitAny": false,
+    "skipLibCheck": true
   },
   "include": ["src/backend/**/*"]
 }
