@@ -1,7 +1,8 @@
 // Hook personalizado para usar Dynamic Wallet con Story Testnet
 // Basado en la documentación oficial de Dynamic: https://www.dynamic.xyz/docs/react-sdk/hooks/usedynamiccontext
+// CRÍTICO: Usar los hooks oficiales de Dynamic según la documentación
 import { useDynamicContext, useIsLoggedIn, useDynamicEvents } from '@dynamic-labs/sdk-react-core';
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 
 export interface DynamicWalletInfo {
   address: string | null;
@@ -13,26 +14,11 @@ export interface DynamicWalletInfo {
 }
 
 export function useDynamicWallet(): DynamicWalletInfo {
-  // Manejar errores si DynamicContext no está disponible
-  // CRÍTICO: No lanzar error, solo retornar valores por defecto
-  // Esto permite que el componente se renderice inmediatamente
-  let contextData;
-  let isLoggedIn = false;
-  try {
-    contextData = useDynamicContext();
-    isLoggedIn = useIsLoggedIn(); // CRÍTICO: Usar hook oficial de Dynamic para verificar autenticación
-  } catch (error) {
-    // Si Dynamic no está disponible aún, retornar valores por defecto sin error
-    // Esto es normal al inicio y permite que el homepage se renderice inmediatamente
-    return {
-      address: null,
-      connected: false,
-      primaryWallet: null,
-      network: null,
-      isLoading: false,
-    };
-  }
-
+  // CRÍTICO: Los hooks de React NO pueden estar dentro de try-catch
+  // Deben llamarse siempre en el mismo orden
+  const contextData = useDynamicContext();
+  const isLoggedIn = useIsLoggedIn(); // Hook oficial de Dynamic para verificar autenticación
+  
   // Estado para forzar re-render cuando la wallet cambia
   const [forceUpdate, setForceUpdate] = useState(0);
   
@@ -54,6 +40,46 @@ export function useDynamicWallet(): DynamicWalletInfo {
     });
     setForceUpdate(prev => prev + 1);
   });
+  
+  // CRÍTICO: Verificar periódicamente si la wallet se conecta
+  // Esto es necesario porque primaryWallet.address puede no estar disponible inmediatamente
+  // después de que Dynamic restaure la wallet
+  useEffect(() => {
+    const primaryWallet = contextData.primaryWallet;
+    const sdkHasLoaded = contextData.sdkHasLoaded;
+    
+    // Solo verificar si el SDK ha cargado y hay una primaryWallet
+    if (sdkHasLoaded && primaryWallet) {
+      const address = primaryWallet.address || 
+                     primaryWallet.connector?.address ||
+                     primaryWallet.accounts?.[0]?.address;
+      
+      if (address && address.startsWith('0x') && address.length === 42) {
+        // Si encontramos una address válida, forzar actualización
+        console.log('🔄 [useDynamicWallet] Wallet detectada en verificación periódica:', address);
+        setForceUpdate(prev => prev + 1);
+      }
+    }
+    
+    // Verificar cada 2 segundos si el SDK ha cargado y hay una wallet
+    const interval = setInterval(() => {
+      const currentPrimaryWallet = contextData.primaryWallet;
+      const currentSdkHasLoaded = contextData.sdkHasLoaded;
+      
+      if (currentSdkHasLoaded && currentPrimaryWallet) {
+        const currentAddress = currentPrimaryWallet.address || 
+                              currentPrimaryWallet.connector?.address ||
+                              currentPrimaryWallet.accounts?.[0]?.address;
+        
+        if (currentAddress && currentAddress.startsWith('0x') && currentAddress.length === 42) {
+          console.log('🔄 [useDynamicWallet] Wallet detectada en intervalo:', currentAddress);
+          setForceUpdate(prev => prev + 1);
+        }
+      }
+    }, 2000);
+    
+    return () => clearInterval(interval);
+  }, [contextData.primaryWallet, contextData.sdkHasLoaded]);
 
   // CRÍTICO: Usar useMemo para evitar re-renders innecesarios
   // Solo recalcular cuando cambien los valores relevantes
@@ -63,24 +89,44 @@ export function useDynamicWallet(): DynamicWalletInfo {
     const network = contextData.network;
     const sdkHasLoaded = contextData.sdkHasLoaded;
     
-    // CRÍTICO: Según la documentación de Dynamic:
-    // 1. useIsLoggedIn verifica si user existe O si authMode es 'connect-only' y primaryWallet existe
-    // 2. primaryWallet.address es la forma correcta de obtener la address
-    // 3. Una wallet está conectada si: isLoggedIn Y primaryWallet existe Y primaryWallet.address existe
+    // CRÍTICO: Según la documentación oficial de Dynamic:
+    // https://www.dynamic.xyz/docs/react-sdk/hooks/usedynamiccontext
+    // "get users primary wallet" ejemplo muestra: const address = primaryWallet.address;
+    // La address está disponible directamente en primaryWallet.address
     
-    const walletAddress = primaryWallet?.address || null;
+    // CRÍTICO: Obtener address de múltiples formas posibles
+    // Dynamic puede exponer la address en diferentes lugares según el estado de carga
+    let walletAddress: string | null = null;
     
-    // CRÍTICO: Verificar conexión usando la lógica oficial de Dynamic
-    // Una wallet está conectada si:
-    // - El usuario está logueado (según useIsLoggedIn)
-    // - Y tiene una primaryWallet
-    // - Y la primaryWallet tiene una address válida
-    const isConnected = isLoggedIn && 
-                       !!primaryWallet && 
-                       !!walletAddress &&
-                       typeof walletAddress === 'string' &&
-                       walletAddress.startsWith('0x') && 
-                       walletAddress.length === 42;
+    if (primaryWallet) {
+      // Método 1: address directo (más común)
+      if (primaryWallet.address) {
+        walletAddress = primaryWallet.address;
+      }
+      // Método 2: desde connector si está disponible
+      else if (primaryWallet.connector?.address) {
+        walletAddress = primaryWallet.connector.address;
+      }
+      // Método 3: desde accounts si está disponible
+      else if (primaryWallet.accounts && primaryWallet.accounts.length > 0) {
+        walletAddress = primaryWallet.accounts[0]?.address || null;
+      }
+    }
+    
+    // CRÍTICO: Verificar conexión de forma más simple y directa
+    // Si primaryWallet existe Y tiene una address válida, la wallet está conectada
+    // No dependemos solo de isLoggedIn porque puede haber casos donde la wallet
+    // está conectada pero el usuario aún no está completamente autenticado
+    const hasValidAddress = walletAddress && 
+                           typeof walletAddress === 'string' &&
+                           walletAddress.startsWith('0x') && 
+                           walletAddress.length === 42;
+    
+    // CRÍTICO: Una wallet está conectada si tiene una address válida
+    // Esto es más directo y no depende de isLoggedIn que puede ser false
+    // incluso cuando la wallet está conectada (especialmente en modo connect-only)
+    // También verificamos que el SDK haya cargado para evitar falsos positivos
+    const isConnected = !!primaryWallet && hasValidAddress && sdkHasLoaded;
     
     if (isConnected) {
       // Asegurar que network sea number o null
@@ -94,7 +140,9 @@ export function useDynamicWallet(): DynamicWalletInfo {
         userId: user?.userId,
         email: user?.email,
         primaryWalletExists: !!primaryWallet,
+        primaryWalletId: primaryWallet?.id,
         sdkHasLoaded,
+        authMode: contextData.authMode,
       });
       
       return {
@@ -108,16 +156,29 @@ export function useDynamicWallet(): DynamicWalletInfo {
     }
     
     // Log detallado para debugging cuando NO está conectada
+    // CRÍTICO: Log más detallado para entender por qué no se detecta
     console.log('⚠️ [useDynamicWallet] Wallet no conectada:', {
       isLoggedIn,
       hasUser: !!user,
       hasPrimaryWallet: !!primaryWallet,
       primaryWalletAddress: primaryWallet?.address,
+      primaryWalletId: primaryWallet?.id,
+      primaryWalletChain: primaryWallet?.chain,
       addressType: typeof primaryWallet?.address,
       addressLength: primaryWallet?.address?.length,
+      walletAddress, // Address detectada (puede ser null)
+      hasValidAddress,
       network,
       sdkHasLoaded,
       authMode: contextData.authMode,
+      // Log completo del primaryWallet para debugging
+      primaryWalletKeys: primaryWallet ? Object.keys(primaryWallet).slice(0, 15) : [],
+      // Log del connector si existe
+      hasConnector: !!primaryWallet?.connector,
+      connectorAddress: primaryWallet?.connector?.address,
+      // Log de accounts si existe
+      hasAccounts: !!(primaryWallet?.accounts?.length),
+      firstAccountAddress: primaryWallet?.accounts?.[0]?.address,
     });
     
     return {

@@ -17,19 +17,35 @@ function Home() {
   const dynamicWallet = useDynamicWallet();
   const inTelegram = isInTelegram();
   
-  // CRÍTICO: Verificar autenticación usando isAuthenticated de Dynamic
-  // El usuario está autenticado cuando tiene una wallet conectada
-  const walletConnected = dynamicWallet.connected && dynamicWallet.address;
+  // CRÍTICO: Verificar conexión de wallet
+  // Una wallet está conectada si tiene una address válida
+  // No dependemos solo de isLoggedIn porque puede haber casos donde la wallet
+  // está conectada pero el usuario aún no está completamente autenticado
+  const walletConnected = dynamicWallet.connected && !!dynamicWallet.address;
   
-  // Log para debugging
+  // Log para debugging - CRÍTICO: Log más detallado
   useEffect(() => {
     console.log('🏠 [Home] Estado de wallet:', {
       connected: dynamicWallet.connected,
       address: dynamicWallet.address,
       network: dynamicWallet.network,
-      isAuthenticated: walletConnected,
+      walletConnected,
+      hasPrimaryWallet: !!dynamicWallet.primaryWallet,
+      primaryWalletAddress: dynamicWallet.primaryWallet?.address,
+      isLoading: dynamicWallet.isLoading,
+      hasUser: !!dynamicWallet.user,
     });
-  }, [dynamicWallet.connected, dynamicWallet.address, walletConnected]);
+    
+    // CRÍTICO: Si primaryWallet existe pero connected es false, loguear por qué
+    if (dynamicWallet.primaryWallet && !dynamicWallet.connected) {
+      console.warn('⚠️ [Home] primaryWallet existe pero connected=false:', {
+        primaryWalletAddress: dynamicWallet.primaryWallet.address,
+        primaryWalletId: dynamicWallet.primaryWallet.id,
+        hookAddress: dynamicWallet.address,
+        hookConnected: dynamicWallet.connected,
+      });
+    }
+  }, [dynamicWallet.connected, dynamicWallet.address, dynamicWallet.primaryWallet, walletConnected]);
   
   // CRÍTICO: Remover loading spinner INMEDIATAMENTE
   useEffect(() => {

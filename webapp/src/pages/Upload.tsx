@@ -140,7 +140,8 @@ function Upload() {
       const uploaderId = telegramUser ? `TelegramUser_${telegramUser.id}` : 'Anonymous';
       
       // CRÍTICO: Obtener wallet del usuario para pagar el fee (usar Dynamic Wallet)
-      // Usar la address del hook, o directamente de primaryWallet si está disponible
+      // Según la documentación de Dynamic: primaryWallet.address es la forma correcta
+      // https://www.dynamic.xyz/docs/react-sdk/hooks/usedynamiccontext
       const walletAddress = dynamicWallet.address || 
                            dynamicWallet.primaryWallet?.address ||
                            null;
@@ -151,14 +152,20 @@ function Upload() {
         address: dynamicWallet.address,
         hasPrimaryWallet: !!dynamicWallet.primaryWallet,
         primaryWalletAddress: dynamicWallet.primaryWallet?.address,
-        connectorAddress: dynamicWallet.primaryWallet?.connector?.address,
         walletAddress,
-        primaryWalletKeys: dynamicWallet.primaryWallet ? Object.keys(dynamicWallet.primaryWallet).slice(0, 10) : [],
+        isLoggedIn: dynamicWallet.user ? 'yes' : 'no',
+        userId: dynamicWallet.user?.userId,
       });
       
-      if (!walletAddress) {
-        console.error('❌ [Upload] Wallet no conectada - no se pudo obtener address');
-        throw new Error('Debes conectar tu wallet primero para registrar IPs. Ve a tu perfil y conecta tu wallet de Dynamic. Si ya la conectaste, espera unos segundos y recarga la página.');
+      // CRÍTICO: Verificar usando la lógica del hook (que usa useIsLoggedIn)
+      if (!dynamicWallet.connected || !walletAddress) {
+        console.error('❌ [Upload] Wallet no conectada:', {
+          connected: dynamicWallet.connected,
+          address: dynamicWallet.address,
+          primaryWalletAddress: dynamicWallet.primaryWallet?.address,
+          hasUser: !!dynamicWallet.user,
+        });
+        throw new Error('Debes conectar tu wallet primero para registrar IPs. Si ya la conectaste con Dynamic, espera unos segundos y recarga la página.');
       }
       
       // Verificar que esté en la red correcta
