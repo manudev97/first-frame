@@ -203,7 +203,7 @@ router.get('/ips/:telegramUserId', async (req, res) => {
         const isPlaceholderIP = blockchainIP.ipId.startsWith('PLACEHOLDER_') || 
                                 blockchainIP.ipId === '0x0000000000000000000000000000000000000000';
         
-        let registryIP = null;
+        let registryIP: typeof allRegistryIPs[0] | undefined = undefined;
         
         // PRIORIDAD 1: Buscar por Token ID (más confiable)
         if (blockchainIP.tokenId) {
@@ -257,8 +257,8 @@ router.get('/ips/:telegramUserId', async (req, res) => {
           // Usar datos del registry (tiene todos los detalles)
           console.log(`✅ Encontrado en registry: ${registryIP.title} (IP ID: ${registryIP.ipId}, Token ID: ${registryIP.tokenId || blockchainIP.tokenId})`);
           finalIPs.push({
-            ipId: registryIP.ipId, // Usar el IP ID del registry (más confiable)
-            tokenId: registryIP.tokenId || blockchainIP.tokenId,
+            ipId: registryIP.ipId || blockchainIP.ipId, // Usar el IP ID del registry (más confiable)
+            tokenId: registryIP.tokenId || blockchainIP.tokenId?.toString(),
             txHash: registryIP.txHash || blockchainIP.txHash,
             title: registryIP.title,
             year: registryIP.year,

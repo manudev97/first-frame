@@ -113,7 +113,7 @@ export async function getIPDetailsFromTransaction(
       // Buscar logs que no sean del contrato NFT y que tengan un address en el primer topic
       for (const log of receipt.logs) {
         if (log && log.address && log.topics && log.address.toLowerCase() !== spgNftContract.toLowerCase() && 
-            log.topics.length >= 1) {
+            log.topics.length >= 1 && log.topics[0]) {
           // El primer topic podría ser el IP ID (si es un evento IPAssetRegistered)
           const potentialIpId = '0x' + log.topics[0].slice(-40);
           // Verificar que sea un address válido (no zero address)

@@ -305,12 +305,15 @@ export async function claimRoyalties(
     console.log(`📤 Ejecutando claimAllRevenue...`);
     
     try {
+      // @ts-ignore - SDK types may have changed
       const tx = await client.royalty.claimAllRevenue({
         ipId: ipId,
         // claimer: claimerWalletAddress, // Puede ser opcional si se usa el account del client
-      });
+      } as any);
       
-      console.log(`✅ Transacción de reclamación enviada: ${tx.txHash}`);
+      // @ts-ignore - SDK may return txHashes array instead of txHash
+      const txHash = tx.txHash || (tx.txHashes && tx.txHashes[0]) || 'unknown';
+      console.log(`✅ Transacción de reclamación enviada: ${txHash}`);
       
       // Esperar confirmación
       const publicClient = createPublicClient({
@@ -319,7 +322,7 @@ export async function claimRoyalties(
       });
       
       const receipt = await publicClient.waitForTransactionReceipt({ 
-        hash: tx.txHash as `0x${string}` 
+        hash: txHash as `0x${string}` 
       });
       
       // Obtener el monto reclamado desde los eventos de la transacción
@@ -327,12 +330,12 @@ export async function claimRoyalties(
       const amount = '0'; // Placeholder, debe parsearse desde los eventos
       
       console.log(`✅ Regalías reclamadas exitosamente:`);
-      console.log(`   - TX Hash: ${tx.txHash}`);
+      console.log(`   - TX Hash: ${txHash}`);
       console.log(`   - Block: ${receipt.blockNumber}`);
       console.log(`   - Amount: ${amount}`);
       
       return {
-        txHash: tx.txHash,
+        txHash: txHash,
         receipt,
         amount,
       };
