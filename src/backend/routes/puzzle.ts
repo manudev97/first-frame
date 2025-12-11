@@ -113,17 +113,37 @@ router.post('/validate', async (req, res) => {
           const { getIPById } = await import('../services/ipRegistry');
           const ip = await getIPById(ipId);
           
-          if (ip && ip.videoFileId) {
+          // CRÍTICO: Verificar que el IP tenga videoFileId O channelMessageId
+          // Si no tiene videoFileId, intentar obtenerlo del canal usando el caption
+          if (ip && (ip.videoFileId || ip.channelMessageId)) {
             // 2. Obtener instancia del bot
             const { bot } = await import('../../bot/index');
             
-            // 3. Reenviar video al usuario directamente usando videoFileId
+            // 3. Reenviar video al usuario directamente usando videoFileId o channelMessageId
             // IMPORTANTE: Usar protect_content: true para desactivar reenvío hasta que se pague
             try {
               // Construir caption completo con toda la información del canal
               const explorerUrl = ip.tokenId 
                 ? `https://aeneid.storyscan.io/token/${ip.ipId}/instance/${ip.tokenId}`
                 : `https://aeneid.storyscan.io/token/${ip.ipId}`;
+              
+              // CRÍTICO: Obtener address del dueño para mostrar en el caption
+              // Intentar obtener desde Dynamic si está disponible, sino usar wallet determinístico
+              let ownerAddress = '';
+              try {
+                const uploaderMatch = ip.uploader?.match(/TelegramUser_(\d+)/);
+                if (uploaderMatch) {
+                  const uploaderTelegramId = parseInt(uploaderMatch[1]);
+                  
+                  // TODO: Intentar obtener address desde Dynamic si el uploader tiene wallet conectada
+                  // Por ahora, usar wallet determinístico como fallback
+                  const { generateDeterministicAddress } = await import('../services/deterministicWalletService');
+                  ownerAddress = generateDeterministicAddress(uploaderTelegramId);
+                  console.log(`✅ Address del dueño obtenida: ${ownerAddress.substring(0, 8)}...${ownerAddress.substring(36)}`);
+                }
+              } catch (addressError) {
+                console.warn('No se pudo obtener address del dueño:', addressError);
+              }
               
               let captionParts = [
                 `🎬 ${ip.title}${ip.year ? ` (${ip.year})` : ''}`,
@@ -143,23 +163,55 @@ router.post('/validate', async (req, res) => {
                 `🎉 Felicidades haz resuelto el Puzzle puedes compartir este video y pagar tus regalías en : @firstframe_ipbot`,
                 ``,
                 `⚠️ Este video está protegido. Debes pagar la regalía (0.1 IP) para poder reenviarlo.`,
-                `💳 Usa el comando /profile en el bot para pagar tus regalías pendientes.`
+                `💳 Regalía pendiente: 0.1 IP`,
               );
+              
+              // CRÍTICO: Agregar address del dueño si está disponible
+              if (ownerAddress) {
+                captionParts.push(`👤 Dueño: ${ownerAddress.substring(0, 8)}...${ownerAddress.substring(36)}`);
+                captionParts.push(`💼 Paga con Dynamic usando esta address`);
+              }
+              
+              captionParts.push(`💳 Usa el comando /profile en el bot para pagar tus regalías pendientes.`);
               
               const fullCaption = captionParts.join('\n');
               
-              await bot.telegram.sendVideo(
-                telegramUserId,
-                ip.videoFileId,
-                {
-                  caption: fullCaption,
-                  protect_content: true, // IMPORTANTE: Desactiva reenvío hasta que se pague
+              // CRÍTICO: Usar videoFileId si está disponible, sino usar channelMessageId para reenviar
+              if (ip.videoFileId) {
+                await bot.telegram.sendVideo(
+                  telegramUserId,
+                  ip.videoFileId,
+                  {
+                    caption: fullCaption,
+                    protect_content: true, // IMPORTANTE: Desactiva reenvío hasta que se pague
+                  }
+                );
+                videoForwarded = true;
+                console.log(`✅ Video reenviado al usuario ${telegramUserId} para IP ${ipId} usando videoFileId (con protección de contenido)`);
+              } else if (ip.channelMessageId) {
+                // Reenviar desde el canal si no hay videoFileId
+                const channelId = process.env.TELEGRAM_CHANNEL_ID || process.env.TELEGRAM_CHANNEL_LINK;
+                if (channelId) {
+                  await bot.telegram.forwardMessage(
+                    telegramUserId,
+                    channelId,
+                    ip.channelMessageId
+                  );
+                  videoForwarded = true;
+                  console.log(`✅ Video reenviado al usuario ${telegramUserId} para IP ${ipId} desde canal (messageId: ${ip.channelMessageId})`);
+                } else {
+                  console.warn(`⚠️  No se puede reenviar video: TELEGRAM_CHANNEL_ID no configurado`);
                 }
-              );
-              videoForwarded = true;
-              console.log(`✅ Video reenviado al usuario ${telegramUserId} para IP ${ipId} (con protección de contenido)`);
+              } else {
+                console.warn(`⚠️  No se puede reenviar video: IP ${ipId} no tiene videoFileId ni channelMessageId`);
+              }
             } catch (forwardError: any) {
               console.error(`❌ Error reenviando video al usuario ${telegramUserId}:`, forwardError);
+              console.error(`   Detalles:`, {
+                hasVideoFileId: !!ip.videoFileId,
+                hasChannelMessageId: !!ip.channelMessageId,
+                errorMessage: forwardError.message,
+              });
               // Continuar aunque falle el reenvío
             }
             
@@ -192,7 +244,12 @@ router.post('/validate', async (req, res) => {
               console.log(`💡 El usuario debe pagar la regalía desde la mini-app para poder reenviar el video`);
             }
           } else {
-            console.warn(`⚠️  No se encontró videoFileId para IP ${ipId} en el registry`);
+            console.warn(`⚠️  No se encontró IP ${ipId} en el registry o no tiene videoFileId/channelMessageId`);
+            console.warn(`   IP encontrado:`, ip ? {
+              hasVideoFileId: !!ip.videoFileId,
+              hasChannelMessageId: !!ip.channelMessageId,
+              title: ip.title,
+            } : 'null');
           }
         } catch (error: any) {
           console.error('Error en nueva lógica de puzzle:', error);

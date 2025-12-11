@@ -22,6 +22,7 @@ function Puzzle() {
   const [solved, setSolved] = useState(false);
   const [time, setTime] = useState(0);
   const [timerStarted, setTimerStarted] = useState(false);
+  const [timerPaused, setTimerPaused] = useState(false); // CRÍTICO: Estado para pausar el timer
   const [showPreview, setShowPreview] = useState(true); // Mostrar vista previa por defecto
   const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null);
   const [derivativeIpId, setDerivativeIpId] = useState<string | null>(null);
@@ -49,8 +50,8 @@ function Puzzle() {
     
     const interval = setInterval(() => {
       setTime((t) => {
-        // No incrementar si el puzzle está resuelto
-        if (solved) {
+        // No incrementar si el puzzle está resuelto o el timer está pausado
+        if (solved || timerPaused) {
           return t;
         }
         return t + 1;
@@ -58,7 +59,7 @@ function Puzzle() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [puzzle, pieces, solved, timerStarted]);
+  }, [puzzle, pieces, solved, timerStarted, timerPaused]);
 
   const loadPuzzle = async () => {
     try {
@@ -258,7 +259,33 @@ function Puzzle() {
 
         {/* Timer y info */}
         <div className="puzzle-header">
-          <div className="timer">⏱️ {formatTime(time)}</div>
+          <div className="timer">
+            ⏱️ {formatTime(time)}
+            {timerPaused && <span style={{ marginLeft: '10px', fontSize: '0.8rem', color: '#ffa500' }}>⏸️ Pausado</span>}
+          </div>
+          {!solved && (
+            <button
+              className="btn-complete"
+              onClick={() => {
+                setTimerPaused(true);
+                // Verificar solución cuando se marca como completado
+                checkSolution(pieces);
+              }}
+              style={{
+                padding: '0.5rem 1rem',
+                background: timerPaused ? '#6c757d' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                marginLeft: '10px',
+              }}
+            >
+              {timerPaused ? '✅ Completado' : '✓ Marcar como Completado'}
+            </button>
+          )}
           <div className="puzzle-info">
             {selectedPiece !== null && (
               <span className="selection-hint">Pieza {selectedPiece + 1} seleccionada - Haz clic en otra para intercambiar</span>

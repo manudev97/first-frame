@@ -82,11 +82,26 @@ router.get('/list', async (req, res) => {
       (ip) => ip.posterUrl && ip.posterUrl.trim() !== ''
     );
     
-    // Separar en dos categorías:
-    // 1. Contenido Disponible: IPs que tienen video en el canal (channelMessageId o videoFileId)
-    // 2. No Disponible: IPs que no tienen video en el canal
+    // CRÍTICO: Separar en dos categorías basándose en si tienen video en el canal
+    // Un IP está disponible si tiene channelMessageId O videoFileId
+    // Esto significa que el video fue enviado al canal y está disponible para los usuarios
     const contenidoDisponible = ipsWithPoster.filter(
-      (ip) => ip.channelMessageId || ip.videoFileId
+      (ip) => {
+        const hasChannelMessage = !!ip.channelMessageId;
+        const hasVideoFileId = !!ip.videoFileId;
+        const isAvailable = hasChannelMessage || hasVideoFileId;
+        
+        // Log detallado para debugging
+        if (!isAvailable && ip.title) {
+          console.log(`⚠️  IP "${ip.title}" no está disponible:`, {
+            hasChannelMessage,
+            hasVideoFileId,
+            ipId: ip.ipId,
+          });
+        }
+        
+        return isAvailable;
+      }
     );
     
     const noDisponible = ipsWithPoster.filter(
