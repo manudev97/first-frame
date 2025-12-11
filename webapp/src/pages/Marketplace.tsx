@@ -34,13 +34,34 @@ function Marketplace() {
   const loadMarketplace = async () => {
     try {
       setLoading(true);
+      
+      // CRÍTICO: Cargar progresivamente - primero mostrar IPs del registry
+      // Luego actualizar con datos de blockchain cuando estén disponibles
       const response = await axios.get(`${API_URL}/marketplace/list`);
       
       if (response.data.success) {
         // Usar las nuevas secciones si están disponibles
         if (response.data.disponible && response.data.noDisponible) {
+          // Mostrar inmediatamente los IPs disponibles
           setDisponible(response.data.disponible);
           setNoDisponible(response.data.noDisponible);
+          setLoading(false); // Ya tenemos datos, no mostrar loading
+          
+          // Si hay más datos cargándose (blockchain), actualizar cuando estén listos
+          if (response.data.loading) {
+            // Esperar a que termine la carga de blockchain y actualizar
+            setTimeout(async () => {
+              try {
+                const updatedResponse = await axios.get(`${API_URL}/marketplace/list`);
+                if (updatedResponse.data.success) {
+                  setDisponible(updatedResponse.data.disponible || []);
+                  setNoDisponible(updatedResponse.data.noDisponible || []);
+                }
+              } catch (err) {
+                console.warn('Error actualizando marketplace:', err);
+              }
+            }, 2000);
+          }
         } else if (response.data.items) {
           // Fallback: separar manualmente si la API no devuelve las secciones
           const items = response.data.items as IPAsset[];
@@ -48,11 +69,11 @@ function Marketplace() {
           const noDisponibleItems = items.filter(item => !item.channelMessageId && !item.videoFileId);
           setDisponible(disponibleItems);
           setNoDisponible(noDisponibleItems);
+          setLoading(false);
         }
       }
     } catch (error: any) {
       console.error('Error cargando marketplace:', error);
-    } finally {
       setLoading(false);
     }
   };

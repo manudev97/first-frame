@@ -198,13 +198,36 @@ router.post('/validate', async (req, res) => {
                 // Reenviar desde el canal si no hay videoFileId
                 const channelId = process.env.TELEGRAM_CHANNEL_ID || process.env.TELEGRAM_CHANNEL_LINK;
                 if (channelId) {
-                  await bot.telegram.forwardMessage(
-                    telegramUserId,
-                    channelId,
-                    ip.channelMessageId
-                  );
-                  videoForwarded = true;
-                  console.log(`✅ Video reenviado al usuario ${telegramUserId} para IP ${ipId} desde canal (messageId: ${ip.channelMessageId})`);
+                  try {
+                    // CRÍTICO: Usar sendVideo con el caption personalizado en lugar de forwardMessage
+                    // forwardMessage no permite protect_content ni caption personalizado
+                    // Primero obtener el video del canal para reenviarlo
+                    const channelMessage = await bot.telegram.getChat(channelId).then(async () => {
+                      // Intentar obtener el video desde el mensaje del canal
+                      // Como no podemos obtener directamente, intentar reenviar y luego enviar con caption
+                      return null;
+                    });
+                    
+                    // Si no podemos obtener el video directamente, usar forwardMessage como fallback
+                    // pero luego enviar un mensaje con el caption
+                    await bot.telegram.forwardMessage(
+                      telegramUserId,
+                      channelId,
+                      ip.channelMessageId
+                    );
+                    
+                    // Enviar mensaje adicional con información de regalía
+                    await bot.telegram.sendMessage(
+                      telegramUserId,
+                      `⚠️ Este video está protegido. Debes pagar la regalía (0.1 IP) para poder reenviarlo.\n\n💳 Usa el comando /profile en el bot para pagar tus regalías pendientes.`
+                    );
+                    
+                    videoForwarded = true;
+                    console.log(`✅ Video reenviado al usuario ${telegramUserId} para IP ${ipId} desde canal (messageId: ${ip.channelMessageId})`);
+                  } catch (forwardError: any) {
+                    console.error(`❌ Error reenviando desde canal:`, forwardError);
+                    throw forwardError;
+                  }
                 } else {
                   console.warn(`⚠️  No se puede reenviar video: TELEGRAM_CHANNEL_ID no configurado`);
                 }

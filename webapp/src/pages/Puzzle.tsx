@@ -346,10 +346,14 @@ function Puzzle() {
                         e.preventDefault();
                         alert('⚠️ IP ID inválido. El link no se puede abrir.');
                       }
+                      // CRÍTICO: Si no hay tokenId, el link puede dar 404
+                      if (!derivativeTokenId) {
+                        console.warn('⚠️ No hay tokenId para el IP derivado, el link puede dar 404');
+                      }
                     }}
                   >
                     Ver IP en Explorer: {derivativeIpId.substring(0, 20)}...
-                    {derivativeTokenId && ` (Instance: ${derivativeTokenId})`}
+                    {derivativeTokenId ? ` (Instance: ${derivativeTokenId})` : ' (Sin instance - puede dar 404)'}
                   </a>
                 )}
                 {derivativeTxHash && (

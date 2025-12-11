@@ -100,6 +100,8 @@ router.get('/stats/:telegramUserId', async (req, res) => {
       success: true,
       telegramUserId,
       stats,
+      walletAddress: userWalletAddress, // CRÍTICO: Devolver wallet address usada
+      walletType: providedWalletAddress ? 'dynamic' : 'deterministic', // CRÍTICO: Tipo de wallet
     });
   } catch (error: any) {
     console.error('Error obteniendo estadísticas del usuario:', error);

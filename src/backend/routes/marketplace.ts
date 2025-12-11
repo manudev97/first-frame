@@ -82,20 +82,42 @@ router.get('/list', async (req, res) => {
       (ip) => ip.posterUrl && ip.posterUrl.trim() !== ''
     );
     
+    // CRÍTICO: Filtrar IPs que tienen regalías pagadas - estos NO deben estar disponibles
+    // Un IP está disponible si:
+    // 1. Tiene video en el canal (channelMessageId O videoFileId)
+    // 2. NO tiene regalías pagadas (o todas las regalías están pendientes)
+    const { loadPendingRoyalties } = await import('../services/royaltyService');
+    const allRoyalties = await loadPendingRoyalties();
+    
+    // Crear un Set de IPs que tienen regalías pagadas
+    const paidRoyaltyIPs = new Set<string>();
+    for (const royalty of allRoyalties) {
+      if (royalty.paid) {
+        paidRoyaltyIPs.add(royalty.ipId.toLowerCase());
+      }
+    }
+    
+    console.log(`📊 IPs con regalías pagadas (no disponibles): ${paidRoyaltyIPs.size}`);
+    
     // CRÍTICO: Separar en dos categorías basándose en si tienen video en el canal
-    // Un IP está disponible si tiene channelMessageId O videoFileId
-    // Esto significa que el video fue enviado al canal y está disponible para los usuarios
+    // Un IP está disponible si tiene channelMessageId O videoFileId Y no tiene regalías pagadas
     const contenidoDisponible = ipsWithPoster.filter(
       (ip) => {
         const hasChannelMessage = !!ip.channelMessageId;
         const hasVideoFileId = !!ip.videoFileId;
-        const isAvailable = hasChannelMessage || hasVideoFileId;
+        const hasVideo = hasChannelMessage || hasVideoFileId;
+        const hasPaidRoyalty = paidRoyaltyIPs.has(ip.ipId.toLowerCase());
+        
+        // Un IP está disponible si tiene video Y no tiene regalías pagadas
+        const isAvailable = hasVideo && !hasPaidRoyalty;
         
         // Log detallado para debugging
         if (!isAvailable && ip.title) {
           console.log(`⚠️  IP "${ip.title}" no está disponible:`, {
             hasChannelMessage,
             hasVideoFileId,
+            hasVideo,
+            hasPaidRoyalty,
             ipId: ip.ipId,
           });
         }
@@ -105,7 +127,12 @@ router.get('/list', async (req, res) => {
     );
     
     const noDisponible = ipsWithPoster.filter(
-      (ip) => !ip.channelMessageId && !ip.videoFileId
+      (ip) => {
+        const hasVideo = !!ip.channelMessageId || !!ip.videoFileId;
+        const hasPaidRoyalty = paidRoyaltyIPs.has(ip.ipId.toLowerCase());
+        // No disponible si no tiene video O si tiene regalías pagadas
+        return !hasVideo || hasPaidRoyalty;
+      }
     );
     
     console.log(`📊 Contenido Disponible: ${contenidoDisponible.length}`);

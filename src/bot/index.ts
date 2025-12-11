@@ -280,104 +280,102 @@ bot.command('profile', async (ctx: Context) => {
     };
   }
 
-  // Obtener estadísticas reales del usuario
-  // Usar la función directamente en lugar de HTTP para evitar problemas de conexión
+  // CRÍTICO: Obtener estadísticas usando la API del backend
+  // Esto permite usar la wallet de Dynamic si está disponible
   let statsMessage = `👤 Tu Perfil\n\nID: ${userId}\n`;
   
   try {
-    // Importar funciones necesarias
-    const { getIPsByUploader } = await import('../backend/services/ipRegistry');
-    const { getStoryBalance } = await import('../backend/services/balanceService');
-    const { getIPCountByAddress } = await import('../backend/services/blockchainIPService');
-    const crypto = require('crypto');
+    // CRÍTICO: Llamar al endpoint del backend que puede usar wallet de Dynamic
+    // El backend intentará obtener la wallet de Dynamic si está disponible
+    const backendUrl = process.env.API_URL || `http://localhost:${process.env.PORT || 3001}`;
+    const statsResponse = await axios.get(`${backendUrl}/api/user/stats/${userId}`);
     
-    // Función para generar wallet determinística (mismo algoritmo que el backend)
-    function generateDeterministicWallet(telegramUserId: number): string {
-      const seed = `firstframe_telegram_${telegramUserId}_wallet_seed_v1`;
-      const hash = crypto.createHash('sha256').update(seed).digest('hex');
-      return '0x' + hash.substring(0, 40);
-    }
-    
-    const userWalletAddress = generateDeterministicWallet(userId);
-    
-    // Obtener IPs desde la blockchain (fuente de verdad)
-    let ipsFromBlockchain = 0;
-    try {
-      ipsFromBlockchain = await getIPCountByAddress(userWalletAddress as `0x${string}`);
-      console.log(`✅ IPs obtenidos desde blockchain para ${userWalletAddress}: ${ipsFromBlockchain}`);
-    } catch (blockchainError: any) {
-      console.warn('⚠️  No se pudieron obtener IPs desde blockchain, usando registry local:', blockchainError.message);
-      // Fallback: usar registry local
-      const uploaderId = `TelegramUser_${userId}`;
-      const userIPs = await getIPsByUploader(uploaderId);
-      ipsFromBlockchain = userIPs.length;
-    }
-    
-    // Obtener wallet del usuario para mostrar balance (IP nativo y MockERC20)
-    let ipBalance = '0.00';
-    let mockTokenBalance = '0.00';
-    try {
-      const userBalance = await getStoryBalance(userWalletAddress as `0x${string}`);
-      ipBalance = parseFloat(userBalance).toFixed(2);
+    if (statsResponse.data.success) {
+      const stats = statsResponse.data;
+      statsMessage += `IPs Registrados: ${stats.ipsRegistered || 0}\n`;
+      statsMessage += `Rompecabezas Completados: ${stats.puzzlesCompleted || 0}\n`;
+      statsMessage += `Regalías Pendientes: ${stats.royaltiesPending || '0.00'} IP\n\n`;
+      statsMessage += `💰 Balances:\n`;
+      statsMessage += `   IP Nativo: ${stats.balances?.ip || '0.00'} IP (para gas)\n`;
+      statsMessage += `   MockERC20: ${stats.balances?.mockToken || '0.00'} tokens (para regalías)`;
       
-      // Obtener balance de MockERC20
-      const { getTokenBalance, getRoyaltyTokenAddress } = await import('../backend/services/tokenBalanceService');
-      const tokenAddress = getRoyaltyTokenAddress();
-      const tokenBalance = await getTokenBalance(tokenAddress, userWalletAddress as `0x${string}`);
-      mockTokenBalance = parseFloat(tokenBalance).toFixed(2);
-    } catch (balanceError: any) {
-      console.warn('No se pudo obtener balance del usuario:', balanceError.message);
-      ipBalance = 'N/A';
-      mockTokenBalance = 'N/A';
+      // CRÍTICO: Mostrar wallet usada si está disponible
+      if (stats.walletAddress) {
+        statsMessage += `\n\n💼 Wallet: ${stats.walletAddress.substring(0, 8)}...${stats.walletAddress.substring(36)}`;
+        statsMessage += stats.walletType === 'dynamic' ? ' (Dynamic)' : ' (Determinística)';
+      }
+    } else {
+      throw new Error('Error en respuesta del backend');
     }
-    
-    // Obtener puzzles completados
-    let puzzlesCompleted = 0;
-    try {
-      const { getPuzzleCompletionsCount } = await import('../backend/services/puzzleTrackingService');
-      puzzlesCompleted = await getPuzzleCompletionsCount(userId);
-    } catch (puzzleError: any) {
-      console.warn('No se pudo obtener conteo de puzzles:', puzzleError.message);
-    }
-    
-    // Obtener regalías pendientes
-    let royaltiesPending = '0';
-    let royaltiesCount = 0;
-    try {
-      const { getPendingRoyaltiesByUser } = await import('../backend/services/royaltyService');
-      const pendingRoyalties = await getPendingRoyaltiesByUser(userId);
-      royaltiesCount = pendingRoyalties.length;
-      // Calcular monto total de regalías pendientes
-      const totalAmount = pendingRoyalties.reduce((sum, r) => sum + parseFloat(r.amount || '0'), 0);
-      royaltiesPending = totalAmount.toFixed(2);
-    } catch (royaltyError: any) {
-      console.warn('No se pudo obtener regalías pendientes:', royaltyError.message);
-    }
-    
-    const stats = {
-      ipsRegistered: ipsFromBlockchain, // Usar conteo desde blockchain
-      puzzlesCompleted: puzzlesCompleted,
-      royaltiesPending: royaltiesPending,
-      balances: {
-        ip: ipBalance,
-        mockToken: mockTokenBalance,
-      },
-    };
-    
-    statsMessage += `IPs Registrados: ${stats.ipsRegistered}\n`;
-    statsMessage += `Rompecabezas Completados: ${stats.puzzlesCompleted}\n`;
-    statsMessage += `Regalías Pendientes: ${stats.royaltiesPending} IP\n\n`;
-    statsMessage += `💰 Balances:\n`;
-    statsMessage += `   IP Nativo: ${stats.balances.ip} IP (para gas)\n`;
-    statsMessage += `   MockERC20: ${stats.balances.mockToken} tokens (para regalías)`;
   } catch (error: any) {
     console.error('Error obteniendo estadísticas del usuario:', error);
-    // Fallback si falla
-    statsMessage += 'IPs Registrados: 0\n';
-    statsMessage += 'Rompecabezas Completados: 0\n';
-    statsMessage += 'Regalías Pendientes: 0 IP\n';
-    statsMessage += '💰 Balance IP: N/A';
-    statsMessage += '\n\n⚠️ No se pudieron cargar las estadísticas completas';
+    // Fallback: usar wallet determinística directamente
+    try {
+      const { getIPsByUploader } = await import('../backend/services/ipRegistry');
+      const { getStoryBalance } = await import('../backend/services/balanceService');
+      const { getIPCountByAddress } = await import('../backend/services/blockchainIPService');
+      const crypto = require('crypto');
+      
+      function generateDeterministicWallet(telegramUserId: number): string {
+        const seed = `firstframe_telegram_${telegramUserId}_wallet_seed_v1`;
+        const hash = crypto.createHash('sha256').update(seed).digest('hex');
+        return '0x' + hash.substring(0, 40);
+      }
+      
+      const userWalletAddress = generateDeterministicWallet(userId);
+      
+      let ipsFromBlockchain = 0;
+      try {
+        ipsFromBlockchain = await getIPCountByAddress(userWalletAddress as `0x${string}`);
+      } catch {
+        const uploaderId = `TelegramUser_${userId}`;
+        const userIPs = await getIPsByUploader(uploaderId);
+        ipsFromBlockchain = userIPs.length;
+      }
+      
+      let ipBalance = '0.00';
+      let mockTokenBalance = '0.00';
+      try {
+        const userBalance = await getStoryBalance(userWalletAddress as `0x${string}`);
+        ipBalance = parseFloat(userBalance).toFixed(2);
+        
+        const { getTokenBalance, getRoyaltyTokenAddress } = await import('../backend/services/tokenBalanceService');
+        const tokenAddress = getRoyaltyTokenAddress();
+        const tokenBalance = await getTokenBalance(tokenAddress, userWalletAddress as `0x${string}`);
+        mockTokenBalance = parseFloat(tokenBalance).toFixed(2);
+      } catch {
+        ipBalance = 'N/A';
+        mockTokenBalance = 'N/A';
+      }
+      
+      let puzzlesCompleted = 0;
+      try {
+        const { getPuzzleCompletionsCount } = await import('../backend/services/puzzleTrackingService');
+        puzzlesCompleted = await getPuzzleCompletionsCount(userId);
+      } catch {}
+      
+      let royaltiesPending = '0';
+      try {
+        const { getPendingRoyaltiesByUser } = await import('../backend/services/royaltyService');
+        const pendingRoyalties = await getPendingRoyaltiesByUser(userId);
+        const totalAmount = pendingRoyalties.reduce((sum, r) => sum + parseFloat(r.amount || '0'), 0);
+        royaltiesPending = totalAmount.toFixed(2);
+      } catch {}
+      
+      statsMessage += `IPs Registrados: ${ipsFromBlockchain}\n`;
+      statsMessage += `Rompecabezas Completados: ${puzzlesCompleted}\n`;
+      statsMessage += `Regalías Pendientes: ${royaltiesPending} IP\n\n`;
+      statsMessage += `💰 Balances:\n`;
+      statsMessage += `   IP Nativo: ${ipBalance} IP (para gas)\n`;
+      statsMessage += `   MockERC20: ${mockTokenBalance} tokens (para regalías)`;
+      statsMessage += `\n\n⚠️ Usando wallet determinística (abre la mini-app para usar Dynamic)`;
+    } catch (fallbackError: any) {
+      statsMessage += 'IPs Registrados: 0\n';
+      statsMessage += 'Rompecabezas Completados: 0\n';
+      statsMessage += 'Regalías Pendientes: 0 IP\n';
+      statsMessage += '💰 Balance IP: N/A';
+      statsMessage += '\n\n⚠️ No se pudieron cargar las estadísticas completas';
+    }
   }
   
   await ctx.reply(statsMessage, replyOptions);
