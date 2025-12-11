@@ -14,6 +14,33 @@ import { royaltiesRouter } from './routes/royalties';
 
 dotenv.config();
 
+// Iniciar el bot de Telegram junto con el backend
+// Esto permite que el bot responda a comandos mientras el backend está corriendo
+let botStarted = false;
+const startTelegramBot = async () => {
+  if (botStarted) return;
+  
+  try {
+    // Importar el bot de forma dinámica para evitar errores si no está configurado
+    const { bot } = await import('../bot/index');
+    
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+      console.warn('⚠️  TELEGRAM_BOT_TOKEN no está configurado. El bot no se iniciará.');
+      console.warn('💡 El backend seguirá funcionando, pero los comandos del bot no estarán disponibles.');
+      return;
+    }
+
+    // El bot ya se inicia automáticamente cuando se importa (ver src/bot/index.ts)
+    // Solo verificamos que esté disponible
+    botStarted = true;
+    console.log('🤖 Bot de Telegram disponible para comandos');
+  } catch (error: any) {
+    console.warn('⚠️  No se pudo iniciar el bot de Telegram:', error.message);
+    console.warn('💡 El backend seguirá funcionando normalmente.');
+    console.warn('💡 Verifica que TELEGRAM_BOT_TOKEN esté configurado en las variables de entorno.');
+  }
+};
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -58,8 +85,11 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, async () => {
   console.log(`🚀 Backend iniciado en puerto ${PORT}`);
+  
+  // Iniciar el bot de Telegram después de que el servidor esté listo
+  await startTelegramBot();
 });
 
 server.on('error', (err: any) => {
