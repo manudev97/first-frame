@@ -7,7 +7,8 @@ import { isInTelegram, getTelegramUser } from '../utils/telegram';
 export function TelegramAutoLogin() {
   const inTelegram = isInTelegram();
   const { telegramSignIn, isAuthWithTelegram } = useTelegramLogin();
-  const { user, isAuthenticated, primaryWallet } = useDynamicContext();
+  const { user, primaryWallet } = useDynamicContext();
+  const isAuthenticated = !!user && !!primaryWallet;
   const [hasAttemptedLogin, setHasAttemptedLogin] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
 
@@ -116,7 +117,7 @@ export function TelegramAutoLogin() {
     }, 1000);
 
     return () => clearTimeout(timeout);
-  }, [telegramSignIn, isAuthWithTelegram, isAuthenticated, user, hasAttemptedLogin, primaryWallet?.address]);
+  }, [telegramSignIn, isAuthWithTelegram, isAuthenticated, user, hasAttemptedLogin, primaryWallet?.address, primaryWallet]);
 
   // SIMPLIFICADO: Ya no necesitamos enlazar en el backend
   // Dynamic ya guarda toda la información del usuario (Telegram ID, email, wallet address)

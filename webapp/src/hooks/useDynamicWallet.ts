@@ -33,23 +33,39 @@ export function useDynamicWallet(): DynamicWalletInfo {
   // Solo recalcular cuando cambien los valores relevantes
   const walletInfo = useMemo(() => {
     const primaryWallet = contextData.primaryWallet;
-    // Verificar autenticación usando primaryWallet en lugar de isAuthenticated
-    const isAuthenticated = !!primaryWallet && !!primaryWallet.address;
+    const user = contextData.user;
+    // CRÍTICO: Verificar autenticación usando user y primaryWallet
+    // Un usuario está autenticado si tiene un user object Y una wallet conectada
+    const isAuthenticated = !!user && !!primaryWallet && !!primaryWallet.address;
     const network = contextData.network;
     
-    if (primaryWallet && isAuthenticated) {
+    // Verificar que el usuario esté autenticado Y tenga una wallet conectada
+    if (isAuthenticated && primaryWallet && primaryWallet.address) {
       const address = primaryWallet.address || null;
       // Asegurar que network sea number o null
       const networkNumber = typeof network === 'number' ? network : (typeof network === 'string' ? parseInt(network, 10) : null);
       
+      console.log('✅ [useDynamicWallet] Usuario autenticado y wallet conectada:', {
+        address,
+        network: networkNumber,
+        hasUser: !!user,
+        userId: user?.userId,
+      });
+      
       return {
         address,
-        connected: !!address && isAuthenticated,
+        connected: true, // Usuario autenticado Y wallet conectada
         primaryWallet,
         network: networkNumber,
         isLoading: false,
       };
     }
+    
+    console.log('⚠️ [useDynamicWallet] Usuario no autenticado o sin wallet:', {
+      hasUser: !!user,
+      hasPrimaryWallet: !!primaryWallet,
+      hasAddress: !!primaryWallet?.address,
+    });
     
     return {
       address: null,
@@ -59,6 +75,7 @@ export function useDynamicWallet(): DynamicWalletInfo {
       isLoading: false,
     };
   }, [
+    contextData.user?.userId, // CRÍTICO: Incluir user en las dependencias
     contextData.primaryWallet?.address,
     contextData.network,
   ]);

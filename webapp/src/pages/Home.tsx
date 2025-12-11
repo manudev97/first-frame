@@ -17,8 +17,19 @@ function Home() {
   const dynamicWallet = useDynamicWallet();
   const inTelegram = isInTelegram();
   
-  // Verificar si la wallet está conectada
+  // CRÍTICO: Verificar autenticación usando isAuthenticated de Dynamic
+  // El usuario está autenticado cuando tiene una wallet conectada
   const walletConnected = dynamicWallet.connected && dynamicWallet.address;
+  
+  // Log para debugging
+  useEffect(() => {
+    console.log('🏠 [Home] Estado de wallet:', {
+      connected: dynamicWallet.connected,
+      address: dynamicWallet.address,
+      network: dynamicWallet.network,
+      isAuthenticated: walletConnected,
+    });
+  }, [dynamicWallet.connected, dynamicWallet.address, walletConnected]);
   
   // CRÍTICO: Remover loading spinner INMEDIATAMENTE
   useEffect(() => {

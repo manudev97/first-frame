@@ -5,9 +5,10 @@ import { getTelegramUser } from '../utils/telegram';
 import { useDynamicWallet } from '../hooks/useDynamicWallet';
 import './Upload.css';
 
-// CRÍTICO: En producción, VITE_API_URL DEBE estar configurado en Vercel
-// En desarrollo, usa el proxy de Vite (/api)
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : '');
+import { getApiUrl } from '../utils/api';
+
+// Obtener API_URL usando el helper
+const API_URL = getApiUrl();
 
 function Upload() {
   const dynamicWallet = useDynamicWallet(); // Usar Dynamic Wallet
@@ -60,8 +61,20 @@ function Upload() {
       return;
     }
     
+    // Verificar que API_URL esté configurado
+    if (!API_URL) {
+      const errorMsg = '❌ Error de configuración: VITE_API_URL no está configurado.\n\n' +
+        'En producción, configura VITE_API_URL en Vercel:\n' +
+        'Settings → Environment Variables → VITE_API_URL\n' +
+        'Valor: https://first-frame-wg3r.onrender.com/api';
+      alert(errorMsg);
+      console.error('API_URL no configurado:', { API_URL, env: import.meta.env });
+      return;
+    }
+    
     try {
       setLoading(true);
+      console.log('🔍 Buscando película en IMDB:', { title, year, API_URL });
       const response = await axios.get(`${API_URL}/imdb/movie/${encodeURIComponent(title)}/${year}`);
       if (response.data.success) {
         setImdbData(response.data.data);
@@ -70,8 +83,26 @@ function Upload() {
         alert('❌ Película no encontrada: ' + (response.data.error || 'Error desconocido'));
       }
     } catch (error: any) {
-      console.error('Error buscando película:', error);
-      const errorMsg = error.response?.data?.error || error.message || 'Error al buscar película';
+      console.error('❌ Error buscando película:', error);
+      console.error('Detalles:', {
+        message: error.message,
+        response: error.response?.data,
+        url: `${API_URL}/imdb/movie/${encodeURIComponent(title)}/${year}`,
+        API_URL,
+      });
+      
+      let errorMsg = error.response?.data?.error || error.message || 'Error al buscar película';
+      
+      // Mensaje más descriptivo para errores de red
+      if (error.message === 'Network Error' || error.code === 'ERR_NETWORK') {
+        errorMsg = '❌ Error de conexión con el backend.\n\n' +
+          'Verifica que:\n' +
+          '1. VITE_API_URL esté configurado en Vercel\n' +
+          '2. El backend esté corriendo en Render\n' +
+          '3. La URL del backend sea correcta\n\n' +
+          `URL intentada: ${API_URL}/imdb/movie/...`;
+      }
+      
       alert('Error: ' + errorMsg);
     } finally {
       setLoading(false);
