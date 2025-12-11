@@ -287,7 +287,7 @@ router.post('/validate', async (req, res) => {
       }
       
       // CRÍTICO: Obtener tokenId del derivado si está disponible
-      let derivativeTokenId = null;
+      let derivativeTokenId: string | null = null;
       if (derivativeIpId) {
         try {
           // Intentar obtener tokenId desde la transacción del derivado
