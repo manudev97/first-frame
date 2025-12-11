@@ -2,6 +2,7 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist/backend",
+    "rootDir": "./src/backend",
     "noImplicitAny": false,
     "skipLibCheck": true
   },
