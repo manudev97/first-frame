@@ -279,7 +279,8 @@ router.post('/register-derivative', async (req, res) => {
       success: true, 
       txHash: tx.txHash, 
       ipId: tx.ipId,
-      tokenId: tokenId ? tokenId.toString() : null, // CRÍTICO: Incluir token ID para el link del explorer
+      tokenId: tokenId ? tokenId.toString() : null, // CRÍTICO: Token ID para construir URL
+      contractAddress: process.env.STORY_SPG_NFT_CONTRACT || null, // CRÍTICO: Contract address para construir URL
     });
   } catch (error: any) {
     console.error('Error registrando derivado:', error);

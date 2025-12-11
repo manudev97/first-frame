@@ -178,12 +178,18 @@ function Puzzle() {
         // Guardar datos del IP derivado y canal para mostrar en la UI
         const derivativeIpIdValue = response.data.derivativeIpId;
         const derivativeTokenIdValue = response.data.derivativeTokenId; // CRÍTICO: Token ID del derivado
+        const derivativeContractAddress = response.data.derivativeContractAddress; // CRÍTICO: Contract address
         const derivativeTxHashValue = response.data.derivativeTxHash;
-        const channelLink = response.data.channelLink;
         
         setDerivativeIpId(derivativeIpIdValue);
         setDerivativeTokenId(derivativeTokenIdValue); // CRÍTICO: Guardar token ID
         setDerivativeTxHash(derivativeTxHashValue);
+        
+        // CRÍTICO: Guardar contract address para construir URL correcta
+        if (derivativeContractAddress) {
+          // Almacenar en estado local para usar en el link
+          (window as any).derivativeContractAddress = derivativeContractAddress;
+        }
         
         // NUEVA LÓGICA: Mostrar mensaje sobre video reenviado y regalía creada
         let successMessage = `🎉 ¡Puzzle completado en ${formatTime(time)}!\n\n`;
@@ -325,11 +331,14 @@ function Puzzle() {
                 <p className="solved-message" style={{ marginBottom: '10px' }}>
                   📸 Póster registrado como IP derivado
                 </p>
-                {derivativeIpId && (
+                {derivativeTokenId && (
                   <a 
-                    href={derivativeTokenId 
-                      ? `https://aeneid.storyscan.io/token/${derivativeIpId}/instance/${derivativeTokenId}`
-                      : `https://aeneid.storyscan.io/token/${derivativeIpId}`}
+                    href={(() => {
+                      // CRÍTICO: Construir URL correcta usando contract address + tokenId
+                      // Formato: https://aeneid.storyscan.io/token/{contractAddress}/instance/{tokenId}
+                      const contractAddress = (window as any).derivativeContractAddress || '0x407bfbB5C3bf61F1F6B5d2243b2D75d85C908815';
+                      return `https://aeneid.storyscan.io/token/${contractAddress}/instance/${derivativeTokenId}`;
+                    })()}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
@@ -340,20 +349,8 @@ function Puzzle() {
                       marginBottom: '10px',
                       fontSize: '0.9rem'
                     }}
-                    onClick={(e) => {
-                      // Verificar si el link es válido antes de abrir
-                      if (!derivativeIpId || !derivativeIpId.startsWith('0x') || derivativeIpId.length !== 42) {
-                        e.preventDefault();
-                        alert('⚠️ IP ID inválido. El link no se puede abrir.');
-                      }
-                      // CRÍTICO: Si no hay tokenId, el link puede dar 404
-                      if (!derivativeTokenId) {
-                        console.warn('⚠️ No hay tokenId para el IP derivado, el link puede dar 404');
-                      }
-                    }}
                   >
-                    Ver IP en Explorer: {derivativeIpId.substring(0, 20)}...
-                    {derivativeTokenId ? ` (Instance: ${derivativeTokenId})` : ' (Sin instance - puede dar 404)'}
+                    Ver IP en Explorer: Token #{derivativeTokenId}
                   </a>
                 )}
                 {derivativeTxHash && (

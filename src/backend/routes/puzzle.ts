@@ -54,7 +54,8 @@ router.post('/validate', async (req, res) => {
       if (ipId && posterUrl) {
         try {
           // Crear metadata del póster
-          const backendUrl = `http://localhost:${process.env.PORT || 3001}`;
+          // CRÍTICO: Usar API_URL de env o construir desde PORT
+          const backendUrl = process.env.API_URL || `http://localhost:${process.env.PORT || 3001}`;
           const posterMetadataResponse = await axios.post(`${backendUrl}/api/ip/create-poster-metadata`, {
             posterUrl,
             parentIpId: ipId,
@@ -66,9 +67,12 @@ router.post('/validate', async (req, res) => {
             const posterMetadata = posterMetadataResponse.data;
             
             // Registrar el póster como IP derivado
-            // CRÍTICO: Enviar userDynamicAddress si está disponible para usar la wallet de Dynamic
-            // Si no está disponible, usar userTelegramId para generar wallet determinística
+            // CRÍTICO: Usar SOLO userDynamicAddress - ya no usar wallet determinística
             const userDynamicAddress = req.body.userDynamicAddress; // Address de Dynamic del usuario
+            if (!userDynamicAddress) {
+              throw new Error('userDynamicAddress es requerido. Conecta tu wallet de Dynamic primero.');
+            }
+            
             const derivativeResponse = await axios.post(`${backendUrl}/api/story/register-derivative`, {
               parentIpId: ipId,
               posterMetadata: {
@@ -77,16 +81,16 @@ router.post('/validate', async (req, res) => {
                 nftUri: posterMetadata.metadataUri,
                 nftHash: posterMetadata.metadataHash,
               },
-              userTelegramId: telegramUserId, // Para fallback si no hay Dynamic address
-              userDynamicAddress: userDynamicAddress, // CRÍTICO: Address de Dynamic del usuario
+              userDynamicAddress: userDynamicAddress, // CRÍTICO: SOLO usar Dynamic wallet
             });
             
             if (derivativeResponse.data.success) {
               derivativeIpId = derivativeResponse.data.ipId;
               derivativeTxHash = derivativeResponse.data.txHash;
-              // CRÍTICO: También obtener tokenId si está disponible
+              // CRÍTICO: También obtener tokenId y contractAddress para construir URL correcta
               const derivativeTokenId = derivativeResponse.data.tokenId;
-              console.log(`✅ IP derivado registrado: ${derivativeIpId}${derivativeTokenId ? ` (Token ID: ${derivativeTokenId})` : ''}`);
+              const contractAddress = derivativeResponse.data.contractAddress || process.env.STORY_SPG_NFT_CONTRACT;
+              console.log(`✅ IP derivado registrado: ${derivativeIpId}${derivativeTokenId ? ` (Token ID: ${derivativeTokenId})` : ''}${contractAddress ? ` (Contract: ${contractAddress})` : ''}`);
             }
           }
         } catch (derivativeError) {
@@ -195,38 +199,37 @@ router.post('/validate', async (req, res) => {
                 videoForwarded = true;
                 console.log(`✅ Video reenviado al usuario ${telegramUserId} para IP ${ipId} usando videoFileId (con protección de contenido)`);
               } else if (ip.channelMessageId) {
-                // Reenviar desde el canal si no hay videoFileId
+                // CRÍTICO: Reenviar desde el canal usando channelMessageId
                 const channelId = process.env.TELEGRAM_CHANNEL_ID || process.env.TELEGRAM_CHANNEL_LINK;
                 if (channelId) {
                   try {
-                    // CRÍTICO: Usar sendVideo con el caption personalizado en lugar de forwardMessage
-                    // forwardMessage no permite protect_content ni caption personalizado
-                    // Primero obtener el video del canal para reenviarlo
-                    const channelMessage = await bot.telegram.getChat(channelId).then(async () => {
-                      // Intentar obtener el video desde el mensaje del canal
-                      // Como no podemos obtener directamente, intentar reenviar y luego enviar con caption
-                      return null;
-                    });
-                    
-                    // Si no podemos obtener el video directamente, usar forwardMessage como fallback
-                    // pero luego enviar un mensaje con el caption
+                    // CRÍTICO: Intentar obtener el video del mensaje del canal primero
+                    // Si tenemos channelMessageId, podemos usar copyMessage o forwardMessage
+                    // forwardMessage es más confiable para mantener el video original
                     await bot.telegram.forwardMessage(
                       telegramUserId,
                       channelId,
                       ip.channelMessageId
                     );
                     
-                    // Enviar mensaje adicional con información de regalía
+                    // CRÍTICO: Enviar mensaje con información de regalía y caption completo
                     await bot.telegram.sendMessage(
                       telegramUserId,
-                      `⚠️ Este video está protegido. Debes pagar la regalía (0.1 IP) para poder reenviarlo.\n\n💳 Usa el comando /profile en el bot para pagar tus regalías pendientes.`
+                      fullCaption + `\n\n⚠️ Este video está protegido. Debes pagar la regalía (0.1 IP) para poder reenviarlo.\n\n💳 Usa el comando /profile en el bot para pagar tus regalías pendientes.`
                     );
                     
                     videoForwarded = true;
                     console.log(`✅ Video reenviado al usuario ${telegramUserId} para IP ${ipId} desde canal (messageId: ${ip.channelMessageId})`);
                   } catch (forwardError: any) {
                     console.error(`❌ Error reenviando desde canal:`, forwardError);
-                    throw forwardError;
+                    console.error(`   Detalles del error:`, {
+                      channelId,
+                      messageId: ip.channelMessageId,
+                      userId: telegramUserId,
+                      errorMessage: forwardError.message,
+                      errorCode: forwardError.response?.error_code,
+                    });
+                    // No fallar el puzzle si falla el reenvío, pero loguear el error
                   }
                 } else {
                   console.warn(`⚠️  No se puede reenviar video: TELEGRAM_CHANNEL_ID no configurado`);
@@ -286,20 +289,24 @@ router.post('/validate', async (req, res) => {
         }
       }
       
-      // CRÍTICO: Obtener tokenId del derivado si está disponible
+      // CRÍTICO: Obtener tokenId y contractAddress del derivado para construir URL correcta
       let derivativeTokenId: string | null = null;
+      let contractAddress: string | null = null;
       if (derivativeIpId) {
         try {
           // Intentar obtener tokenId desde la transacción del derivado
           const { getIPDetailsFromTransaction } = await import('../services/txParser');
           if (derivativeTxHash) {
+            const spgNftContract = process.env.STORY_SPG_NFT_CONTRACT as `0x${string}`;
+            contractAddress = spgNftContract; // CRÍTICO: Usar contract address para la URL
             const ipDetails = await getIPDetailsFromTransaction(
               derivativeTxHash as `0x${string}`,
-              process.env.STORY_SPG_NFT_CONTRACT as `0x${string}`
+              spgNftContract
             );
             if (ipDetails && ipDetails.tokenId) {
               derivativeTokenId = ipDetails.tokenId.toString();
               console.log(`✅ Token ID del derivado obtenido: ${derivativeTokenId}`);
+              console.log(`✅ Contract Address: ${contractAddress}`);
             }
           }
         } catch (tokenError) {
@@ -312,7 +319,8 @@ router.post('/validate', async (req, res) => {
         message: '¡Puzzle completado correctamente!',
         accessGranted: true,
         derivativeIpId: derivativeIpId,
-        derivativeTokenId: derivativeTokenId, // CRÍTICO: Incluir token ID para el link del explorer
+        derivativeTokenId: derivativeTokenId, // CRÍTICO: Token ID para construir URL
+        derivativeContractAddress: contractAddress, // CRÍTICO: Contract address para construir URL
         derivativeTxHash: derivativeTxHash,
         videoForwarded: videoForwarded,
         royaltyCreated: royaltyCreated,

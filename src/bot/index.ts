@@ -291,18 +291,24 @@ bot.command('profile', async (ctx: Context) => {
     const statsResponse = await axios.get(`${backendUrl}/api/user/stats/${userId}`);
     
     if (statsResponse.data.success) {
-      const stats = statsResponse.data;
-      statsMessage += `IPs Registrados: ${stats.ipsRegistered || 0}\n`;
-      statsMessage += `Rompecabezas Completados: ${stats.puzzlesCompleted || 0}\n`;
-      statsMessage += `Regalías Pendientes: ${stats.royaltiesPending || '0.00'} IP\n\n`;
-      statsMessage += `💰 Balances:\n`;
-      statsMessage += `   IP Nativo: ${stats.balances?.ip || '0.00'} IP (para gas)\n`;
-      statsMessage += `   MockERC20: ${stats.balances?.mockToken || '0.00'} tokens (para regalías)`;
+      const stats = statsResponse.data.stats; // CRÍTICO: Acceder a stats.stats
+      const walletAddress = statsResponse.data.walletAddress; // CRÍTICO: Wallet address usada
+      const walletType = statsResponse.data.walletType; // CRÍTICO: Tipo de wallet
       
-      // CRÍTICO: Mostrar wallet usada si está disponible
-      if (stats.walletAddress) {
-        statsMessage += `\n\n💼 Wallet: ${stats.walletAddress.substring(0, 8)}...${stats.walletAddress.substring(36)}`;
-        statsMessage += stats.walletType === 'dynamic' ? ' (Dynamic)' : ' (Determinística)';
+      statsMessage += `IPs Registrados: ${stats?.ipsRegistered || 0}\n`;
+      statsMessage += `Rompecabezas Completados: ${stats?.puzzlesCompleted || 0}\n`;
+      statsMessage += `Regalías Pendientes: ${stats?.royaltiesPending || '0.00'} IP\n\n`;
+      statsMessage += `💰 Balances:\n`;
+      statsMessage += `   IP Nativo: ${stats?.balances?.ip || '0.00'} IP (para gas)\n`;
+      statsMessage += `   MockERC20: ${stats?.balances?.mockToken || '0.00'} tokens (para regalías)`;
+      
+      // CRÍTICO: Mostrar wallet usada (Dynamic si está disponible)
+      if (walletAddress) {
+        statsMessage += `\n\n💼 Wallet: ${walletAddress.substring(0, 8)}...${walletAddress.substring(36)}`;
+        statsMessage += walletType === 'dynamic' ? ' (Dynamic ✅)' : ' (Determinística ⚠️)';
+        if (walletType !== 'dynamic') {
+          statsMessage += `\n\n⚠️ Abre la mini-app para conectar tu wallet de Dynamic y ver datos actualizados.`;
+        }
       }
     } else {
       throw new Error('Error en respuesta del backend');

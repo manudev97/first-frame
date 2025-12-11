@@ -35,32 +35,39 @@ function Marketplace() {
     try {
       setLoading(true);
       
-      // CRÍTICO: Cargar progresivamente - primero mostrar IPs del registry
+      // CRÍTICO: Cargar progresivamente - primero mostrar IPs del registry (rápido)
       // Luego actualizar con datos de blockchain cuando estén disponibles
       const response = await axios.get(`${API_URL}/marketplace/list`);
       
       if (response.data.success) {
         // Usar las nuevas secciones si están disponibles
         if (response.data.disponible && response.data.noDisponible) {
-          // Mostrar inmediatamente los IPs disponibles
+          // CRÍTICO: Mostrar inmediatamente los IPs del registry (aunque sean pocos)
+          // Esto hace que la página se vea más rápida
           setDisponible(response.data.disponible);
           setNoDisponible(response.data.noDisponible);
-          setLoading(false); // Ya tenemos datos, no mostrar loading
+          setLoading(false); // Ya tenemos datos, ocultar loading
           
-          // Si hay más datos cargándose (blockchain), actualizar cuando estén listos
-          if (response.data.loading) {
-            // Esperar a que termine la carga de blockchain y actualizar
+          // Si la respuesta viene del caché, los datos ya están completos
+          // Si no viene del caché, puede haber más datos cargándose desde blockchain
+          if (!response.data.cached) {
+            // Actualizar después de un breve delay para incluir datos de blockchain
             setTimeout(async () => {
               try {
                 const updatedResponse = await axios.get(`${API_URL}/marketplace/list`);
-                if (updatedResponse.data.success) {
-                  setDisponible(updatedResponse.data.disponible || []);
-                  setNoDisponible(updatedResponse.data.noDisponible || []);
+                if (updatedResponse.data.success && updatedResponse.data.disponible) {
+                  // Solo actualizar si hay más IPs disponibles
+                  if (updatedResponse.data.disponible.length > disponible.length || 
+                      updatedResponse.data.noDisponible.length > noDisponible.length) {
+                    setDisponible(updatedResponse.data.disponible || []);
+                    setNoDisponible(updatedResponse.data.noDisponible || []);
+                    console.log('✅ Marketplace actualizado con datos de blockchain');
+                  }
                 }
               } catch (err) {
                 console.warn('Error actualizando marketplace:', err);
               }
-            }, 2000);
+            }, 3000); // Esperar 3 segundos para que blockchain termine de cargar
           }
         } else if (response.data.items) {
           // Fallback: separar manualmente si la API no devuelve las secciones
