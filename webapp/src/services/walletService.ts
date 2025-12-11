@@ -2,7 +2,9 @@
 import axios from 'axios';
 import { getTelegramUser } from '../utils/telegram';
 
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:3001/api');
+// CRÍTICO: En producción, VITE_API_URL DEBE estar configurado en Vercel
+// En desarrollo, usa el proxy de Vite (/api)
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : '');
 
 export interface WalletInfo {
   address: string;

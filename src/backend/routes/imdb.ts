@@ -18,11 +18,16 @@ router.get('/movie/:title/:year', async (req, res) => {
     }
     
     if (!apiKey || apiKey === 'your_omdb_api_key_here') {
+      console.error('❌ OMDB_API_KEY no está configurado en el backend');
+      console.error('   Verifica que OMDB_API_KEY esté en tu archivo .env del proyecto raíz');
+      console.error('   Obtén una API key gratuita en: http://www.omdbapi.com/apikey.aspx');
       return res.status(400).json({ 
         success: false, 
-        error: 'OMDB_API_KEY no está configurado. Obtén una API key gratuita en http://www.omdbapi.com/apikey.aspx' 
+        error: 'OMDB_API_KEY no está configurado. Verifica que esté en tu archivo .env del proyecto raíz. Obtén una API key gratuita en http://www.omdbapi.com/apikey.aspx' 
       });
     }
+    
+    console.log('✅ OMDB_API_KEY encontrado (longitud:', apiKey.length, 'caracteres)');
     
     const response = await axios.get('http://www.omdbapi.com/', {
       params: {

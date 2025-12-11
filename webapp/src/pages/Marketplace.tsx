@@ -4,7 +4,9 @@ import { Link } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import './Marketplace.css';
 
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:3001/api');
+// CRÍTICO: En producción, VITE_API_URL DEBE estar configurado en Vercel
+// En desarrollo, usa el proxy de Vite (/api)
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : '');
 
 interface IPAsset {
   ipId: string;

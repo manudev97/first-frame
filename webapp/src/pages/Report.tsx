@@ -3,8 +3,9 @@ import axios from 'axios';
 import Navigation from '../components/Navigation';
 import './Report.css';
 
-// Usar proxy de Vite en desarrollo, o URL configurada en producción
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:3001/api');
+// CRÍTICO: En producción, VITE_API_URL DEBE estar configurado en Vercel
+// En desarrollo, usa el proxy de Vite (/api)
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : '');
 
 function Report() {
   const [targetIpId, setTargetIpId] = useState('');

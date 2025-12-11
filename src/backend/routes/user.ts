@@ -16,7 +16,8 @@ function generateDeterministicWallet(telegramUserId: number): string {
 
 /**
  * Obtener estadísticas de un usuario
- * GET /api/user/stats/:telegramUserId
+ * GET /api/user/stats/:telegramUserId?walletAddress=0x...
+ * Si se proporciona walletAddress (de Dynamic), usarla. Si no, usar determinística.
  */
 router.get('/stats/:telegramUserId', async (req, res) => {
   try {
@@ -29,8 +30,14 @@ router.get('/stats/:telegramUserId', async (req, res) => {
       });
     }
 
-    // Obtener wallet determinística del usuario
-    const userWalletAddress = generateDeterministicWallet(telegramUserId) as `0x${string}`;
+    // Si se proporciona walletAddress (de Dynamic), usarla. Si no, usar determinística como fallback
+    const providedWalletAddress = req.query.walletAddress as string | undefined;
+    const userWalletAddress = (providedWalletAddress && providedWalletAddress.startsWith('0x') && providedWalletAddress.length === 42)
+      ? (providedWalletAddress as `0x${string}`)
+      : (generateDeterministicWallet(telegramUserId) as `0x${string}`);
+    
+    console.log(`📊 Obteniendo estadísticas para usuario ${telegramUserId}`);
+    console.log(`📊 Usando dirección: ${userWalletAddress} ${providedWalletAddress ? '(Dynamic)' : '(Determinística)'}`);
 
     // Intentar obtener IPs desde blockchain (fuente de verdad)
     let ipsCount = 0;
@@ -119,7 +126,15 @@ router.get('/ips/:telegramUserId', async (req, res) => {
     }
 
     const uploaderId = `TelegramUser_${telegramUserId}`;
-    const userWalletAddress = generateDeterministicWallet(telegramUserId) as `0x${string}`;
+    
+    // Si se proporciona walletAddress (de Dynamic), usarla. Si no, usar determinística como fallback
+    const providedWalletAddress = req.query.walletAddress as string | undefined;
+    const userWalletAddress = (providedWalletAddress && providedWalletAddress.startsWith('0x') && providedWalletAddress.length === 42)
+      ? (providedWalletAddress as `0x${string}`)
+      : (generateDeterministicWallet(telegramUserId) as `0x${string}`);
+    
+    console.log(`📊 Obteniendo IPs para usuario ${telegramUserId}`);
+    console.log(`📊 Usando dirección: ${userWalletAddress} ${providedWalletAddress ? '(Dynamic)' : '(Determinística)'}`);
 
     // 1. Obtener IPs desde registry local por uploader
     const registryIPsByUploader = await getIPsByUploader(uploaderId);
@@ -307,6 +322,10 @@ router.get('/ips/:telegramUserId', async (req, res) => {
     });
   }
 });
+
+// REMOVIDO: Endpoint /link-wallet
+// Ya no es necesario - Dynamic guarda toda la información del usuario
+// El frontend siempre enviará la dirección de Dynamic directamente al backend cuando sea necesario
 
 export { router as userRouter };
 

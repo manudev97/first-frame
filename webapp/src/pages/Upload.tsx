@@ -2,13 +2,15 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import Navigation from '../components/Navigation';
 import { getTelegramUser } from '../utils/telegram';
-import { getSavedWallet } from '../services/walletService';
+import { useDynamicWallet } from '../hooks/useDynamicWallet';
 import './Upload.css';
 
-// Usar proxy de Vite en desarrollo, o URL configurada en producción
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:3001/api');
+// CRÍTICO: En producción, VITE_API_URL DEBE estar configurado en Vercel
+// En desarrollo, usa el proxy de Vite (/api)
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : '');
 
 function Upload() {
+  const dynamicWallet = useDynamicWallet(); // Usar Dynamic Wallet
   const [title, setTitle] = useState('');
   const [year, setYear] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
@@ -106,10 +108,14 @@ function Upload() {
       const telegramUser = getTelegramUser();
       const uploaderId = telegramUser ? `TelegramUser_${telegramUser.id}` : 'Anonymous';
       
-      // Obtener wallet del usuario para pagar el fee
-      const savedWallet = getSavedWallet();
-      if (!savedWallet || !savedWallet.connected || !savedWallet.address) {
-        throw new Error('Debes conectar tu wallet primero para registrar IPs. Ve a tu perfil y conecta tu wallet.');
+      // Obtener wallet del usuario para pagar el fee (usar Dynamic Wallet)
+      if (!dynamicWallet.connected || !dynamicWallet.address) {
+        throw new Error('Debes conectar tu wallet primero para registrar IPs. Ve a tu perfil y conecta tu wallet de Dynamic.');
+      }
+      
+      // Verificar que esté en la red correcta
+      if (dynamicWallet.network !== 1315) {
+        throw new Error('Debes estar conectado a Story Testnet (Chain ID: 1315). Cambia la red en tu wallet de Dynamic.');
       }
 
       const storyResponse = await axios.post(`${API_URL}/story/register-ip`, {
@@ -127,7 +133,7 @@ function Upload() {
         imdbId: movieData?.imdbId || movieData?.imdbID,
         uploader: uploaderId, // CRÍTICO: Enviar uploader para que se muestre en el perfil
         uploaderName: telegramUser ? `${telegramUser.first_name} ${telegramUser.last_name || ''}`.trim() : undefined, // Enviar nombre del uploader
-        userWalletAddress: savedWallet.address, // CRÍTICO: Wallet del usuario para pagar fees
+        userWalletAddress: dynamicWallet.address, // CRÍTICO: Wallet de Dynamic del usuario para pagar fees
         // NO pasar licenseTerms - se registrarán después
       });
 

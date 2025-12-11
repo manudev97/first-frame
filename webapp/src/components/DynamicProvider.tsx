@@ -50,47 +50,7 @@ export function DynamicProvider({ children }: DynamicProviderProps) {
         console.log('✅ Dynamic Environment ID configurado:', dynamicEnvironmentId);
       }
 
-      // Verificar CORS de forma asíncrona
-          const checkCorsError = () => {
-            // Verificar errores de CORS en la consola
-            window.addEventListener('error', (event) => {
-              const message = event.message || '';
-              if (message.includes('CORS') || message.includes('Access-Control-Allow-Origin')) {
-                console.error('❌❌❌ ERROR DE CORS DETECTADO! ❌❌❌');
-                console.error('   Tu dominio NO está en la lista de CORS permitidos en Dynamic Dashboard.');
-                console.error('   Dominio actual:', window.location.origin);
-                console.error('   ⚠️ ESTO IMPIDE QUE EL SANDBOX SE ABRA ⚠️');
-                console.error('   Solución URGENTE:');
-                console.error('   1. Ve a https://app.dynamic.xyz/dashboard/security/cors');
-                console.error('   2. Agrega este dominio EXACTAMENTE:', window.location.origin);
-                console.error('   3. IMPORTANTE: NO agregues "/" al final');
-                console.error('   4. Guarda los cambios y espera 1-2 MINUTOS');
-                console.error('   5. Recarga la mini app después de esperar');
-                
-                // Log del error - showAlert no está disponible en el tipo de Telegram WebApp
-                console.warn('⚠️ Error de CORS detectado - verifica la consola para más detalles');
-              }
-            });
-
-            // También verificar errores de fetch que pueden ser CORS
-            const originalFetch = window.fetch;
-            window.fetch = async (...args) => {
-              try {
-                const response = await originalFetch(...args);
-                return response;
-              } catch (error: any) {
-                if (error.message && error.message.includes('CORS')) {
-                  console.error('❌❌❌ ERROR DE CORS EN FETCH! ❌❌❌');
-                  console.error('   URL:', args[0]);
-                  console.error('   Dominio actual:', window.location.origin);
-                  console.error('   Ve a https://app.dynamic.xyz/dashboard/security/cors');
-                  console.error('   Agrega:', window.location.origin);
-                }
-                throw error;
-              }
-            };
-          };
-          checkCorsError();
+      // CORS ya está configurado correctamente, no necesitamos verificación adicional
     };
     
     // Ejecutar después de que el render inicial esté completo
@@ -111,11 +71,10 @@ export function DynamicProvider({ children }: DynamicProviderProps) {
   // ESPECIALMENTE IMPORTANTE en móvil donde el WebView tiene restricciones diferentes
   const getRedirectUrl = () => {
     if (isInTelegram) {
-      // En Telegram Mini App, usar la URL actual como redirect
-      // CRÍTICO: En móvil, debe ser la URL completa sin query parameters
-      // para evitar problemas con el WebView de Telegram
-      // IMPORTANTE: No incluir query parameters en el redirectUrl para móvil
-      const baseUrl = window.location.origin + window.location.pathname;
+      // CRÍTICO: redirectUrl debe ser SOLO el dominio base, SIN paths ni query parameters
+      // Según la documentación de Dynamic, el redirectUrl debe ser el origen base
+      // Incluir paths puede causar problemas en móvil
+      const baseUrl = window.location.origin; // SOLO el dominio, sin path
       const platform = window.Telegram?.WebApp?.platform;
       const isMobile = platform === 'android' || platform === 'ios';
       
@@ -125,11 +84,12 @@ export function DynamicProvider({ children }: DynamicProviderProps) {
       console.log('📱 [DynamicProvider] URL completa actual:', window.location.href);
       console.log('📱 [DynamicProvider] setupInsideIframe ejecutado:', !!(window as any).__dynamicIframeSetup);
       
-      // En móvil, asegurar que el redirectUrl sea exactamente la base URL
+      // En móvil, asegurar que el redirectUrl sea exactamente la base URL (sin path)
       if (isMobile) {
         console.log('📱 [DynamicProvider] ⚠️ MÓVIL DETECTADO - Configuración específica aplicada');
-        console.log('📱 [DynamicProvider] Redirect URL (móvil):', baseUrl);
-        console.log('📱 [DynamicProvider] ⚠️ Si el sandbox no se abre, verifica setupInsideIframe en los logs');
+        console.log('📱 [DynamicProvider] Redirect URL (móvil - SOLO dominio):', baseUrl);
+        console.log('📱 [DynamicProvider] ⚠️ Si el sandbox no se abre, verifica CORS en Dynamic Dashboard');
+        console.log('📱 [DynamicProvider] ⚠️ CORS debe tener:', baseUrl);
       }
       
       return baseUrl;
@@ -153,20 +113,15 @@ export function DynamicProvider({ children }: DynamicProviderProps) {
         // Esto evita que el sandbox se quede en ciclo infinito
         redirectUrl: getRedirectUrl(),
         
-        // CRÍTICO para móvil: Configuración específica para evitar problemas con el sandbox
-        // En Telegram móvil, el WebView tiene restricciones diferentes que pueden causar
-        // que el sandbox no se abra o se quede en ciclo infinito
-        // Estas configuraciones ayudan a que funcione correctamente en móvil
-        // Configuración adicional para evitar ciclos infinitos en el sandbox
-        // Deshabilitar auto-login automático que puede causar problemas
-        // El usuario debe hacer clic manualmente en "Continuar con Email"
         // Configuración para Telegram Mini Apps
         // Dynamic detecta automáticamente:
         // 1. telegramAuthToken en la URL (?telegramAuthToken=...)
         // 2. window.Telegram.WebApp.initData
-        // Y maneja el login automáticamente
+        // Y maneja el login automáticamente con useTelegramLogin hook
         // Embedded Wallets (MPC) se habilitan automáticamente con EthereumWalletConnectors
         // Esto permite crear wallets sin necesidad de extensiones de navegador
+        // NOTA: La habilitación de Telegram Social Login se hace desde Dynamic Dashboard
+        // Dashboard > Log In & User Profile > Telegram > Enable "Use for log in & sign up"
       }}
     >
       {children}

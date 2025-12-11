@@ -1,7 +1,5 @@
-// Componente para login automático con Telegram usando Dynamic Auto-Wallets
-// Basado en: https://github.com/dynamic-labs/telegram-miniapp-dynamic
-// Documentación: https://www.dynamic.xyz/docs/guides/integrations/telegram/telegram-auto-wallets
-// IMPORTANTE: El sandbox de email NO requiere MetaMask - funciona independientemente
+// Componente para mostrar DynamicWidget en Telegram Mini App
+// El auto-login se maneja en TelegramAutoLogin.tsx
 import { useEffect, useRef, useState } from 'react';
 import { DynamicWidget, useDynamicContext } from '@dynamic-labs/sdk-react-core';
 import { isInTelegram } from '../utils/telegram';

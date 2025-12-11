@@ -4,10 +4,11 @@ import { DynamicWidgetWrapper } from '../components/DynamicWidgetWrapper';
 import { useDynamicWallet } from '../hooks/useDynamicWallet';
 import Navigation from '../components/Navigation';
 import { getTelegramUser } from '../utils/telegram';
-import { getSavedWallet } from '../services/walletService';
 import './Profile.css';
 
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:3001/api');
+// CRÍTICO: En producción, VITE_API_URL DEBE estar configurado en Vercel
+// En desarrollo, usa el proxy de Vite (/api)
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : '');
 
 interface TelegramUser {
   id: number;
@@ -35,12 +36,13 @@ interface IPAsset {
 }
 
 function UserIPsList() {
+  const dynamicWallet = useDynamicWallet(); // Obtener dirección de Dynamic
   const [userIPs, setUserIPs] = useState<IPAsset[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadUserIPs();
-  }, []);
+  }, [dynamicWallet.address]); // Recargar cuando cambie la dirección de Dynamic
 
   const loadUserIPs = async () => {
     try {
@@ -51,9 +53,17 @@ function UserIPsList() {
       }
 
       // Intentar obtener IPs desde el nuevo endpoint (prioriza registry local)
+      // IMPORTANTE: Pasar la dirección de Dynamic si está disponible
+      // Esto permite que el backend busque IPs registrados con la dirección de Dynamic
       try {
+        const walletAddress = dynamicWallet.address;
+        const ipsUrl = walletAddress 
+          ? `${API_URL}/user/ips/${user.id}?walletAddress=${encodeURIComponent(walletAddress)}`
+          : `${API_URL}/user/ips/${user.id}`;
+        
         console.log(`🔍 Cargando IPs para usuario ${user.id} desde /user/ips...`);
-        const response = await axios.get(`${API_URL}/user/ips/${user.id}`);
+        console.log(`🔍 Usando dirección: ${walletAddress || 'determinística'}`);
+        const response = await axios.get(ipsUrl);
         
         console.log('📥 Respuesta del endpoint /user/ips:', {
           success: response.data.success,
@@ -187,13 +197,15 @@ function Profile() {
       setTelegramUser(user);
     }
 
-    // Actualizar wallet cuando Dynamic Wallet cambie (sin esperar isLoading)
+    // Actualizar wallet cuando Dynamic Wallet cambie
+    // IMPORTANTE: Usar SOLO la dirección de Dynamic (asociada al email)
+    // Ya no usar la dirección determinística generada por Telegram
     if (dynamicWallet.connected && dynamicWallet.address) {
       setWallet({
         address: dynamicWallet.address,
         connected: true,
       });
-      // Cargar balance de Story Testnet de forma asíncrona
+      // Cargar balance de Story Testnet usando la dirección de Dynamic
       loadStoryBalance(dynamicWallet.address);
     } else {
       setWallet(null);
@@ -220,6 +232,7 @@ function Profile() {
       }
     } catch (error) {
       console.error('Error cargando balances:', error);
+      // No mostrar error al usuario, solo loguear
     }
   };
 
@@ -231,8 +244,16 @@ function Profile() {
       }
 
       // Obtener estadísticas desde el endpoint que consulta blockchain
+      // IMPORTANTE: Pasar la dirección de Dynamic si está disponible
+      // Esto permite que el backend busque IPs registrados con la dirección de Dynamic
       try {
-        const statsResponse = await axios.get(`${API_URL}/user/stats/${user.id}`);
+        const walletAddress = wallet?.address || dynamicWallet.address;
+        const statsUrl = walletAddress 
+          ? `${API_URL}/user/stats/${user.id}?walletAddress=${encodeURIComponent(walletAddress)}`
+          : `${API_URL}/user/stats/${user.id}`;
+        
+        console.log('📊 Cargando estadísticas con dirección:', walletAddress || 'determinística');
+        const statsResponse = await axios.get(statsUrl);
         
         if (statsResponse.data.success) {
           setStats({
@@ -288,6 +309,8 @@ function Profile() {
       const royaltyAmount = royalty?.amount || '0.1';
       
       // Obtener wallet del uploader desde la regalía
+      // IMPORTANTE: El backend debe obtener la dirección de Dynamic si está enlazada
+      // Por ahora, usamos la determinística como fallback
       const { generateDeterministicWallet } = await import('../services/walletService');
       const uploaderWallet = royalty?.uploaderTelegramId 
         ? await generateDeterministicWallet(royalty.uploaderTelegramId)
@@ -307,12 +330,19 @@ function Profile() {
         return;
       }
       
+      // IMPORTANTE: Usar la dirección de Dynamic del usuario actual (no determinística)
+      if (!wallet.address) {
+        alert('❌ No hay wallet conectada. Por favor, conecta tu wallet de Dynamic.');
+        return;
+      }
+      
       // Pagar regalía usando Story Protocol SDK (payRoyaltyOnBehalf)
       console.log('💰 Pagando regalía usando Story Protocol...');
+      console.log('💰 Usando dirección de Dynamic:', wallet.address);
       
       const paymentResponse = await axios.post(`${API_URL}/royalties/pay`, {
         royaltyId,
-        ownerAddress: wallet.address,
+        ownerAddress: wallet.address, // Dirección de Dynamic (asociada al email)
         destinationAddress: uploaderWallet,
         payerTelegramUserId: telegramUserId,
       });
@@ -430,13 +460,13 @@ function Profile() {
                 <div style={{ marginBottom: '0.75rem' }}>
                   <span className="label">IP Nativo (para gas):</span>
                   <span className="balance">
-                    {wallet.balance !== undefined ? `${parseFloat(wallet.balance).toFixed(2)} IP` : 'Cargando...'}
+                    {wallet.balance !== undefined ? `${parseFloat(wallet.balance).toFixed(4)} IP` : 'Cargando...'}
                   </span>
                 </div>
                 <div>
                   <span className="label">MockERC20 (para regalías):</span>
                   <span className="balance">
-                    {wallet.mockTokenBalance !== undefined ? `${parseFloat(wallet.mockTokenBalance).toFixed(2)} tokens` : 'Cargando...'}
+                    {wallet.mockTokenBalance !== undefined ? `${parseFloat(wallet.mockTokenBalance).toFixed(4)} tokens` : 'Cargando...'}
                   </span>
                 </div>
                 {wallet.balance !== undefined && parseFloat(wallet.balance) < 0.001 && (

@@ -1,7 +1,8 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import { isInTelegram } from '../utils/telegram';
+import { useDynamicWallet } from '../hooks/useDynamicWallet';
 import './Home.css';
 
 // Lazy load de componentes pesados para no bloquear la carga inicial
@@ -12,10 +13,12 @@ function Home() {
   // CRÍTICO: Log para verificar que Home se está renderizando
   console.log('✅ [Home] Home component renderizando');
   
-  // CRÍTICO: Renderizar UI inmediatamente sin esperar a Dynamic
-  // El homepage DEBE mostrarse instantáneamente
-  const [wallet, setWallet] = useState<any>(null);
+  // CRÍTICO: Usar Dynamic Wallet para detectar conexión
+  const dynamicWallet = useDynamicWallet();
   const inTelegram = isInTelegram();
+  
+  // Verificar si la wallet está conectada
+  const walletConnected = dynamicWallet.connected && dynamicWallet.address;
   
   // CRÍTICO: Remover loading spinner INMEDIATAMENTE
   useEffect(() => {
@@ -55,7 +58,7 @@ function Home() {
       </div>
 
       {/* Botón de Conexión Prominente - PRIMERO y MUY Visible */}
-      {!wallet || !wallet.connected ? (
+      {!walletConnected ? (
         <div style={{
           margin: '1.5rem 0',
           padding: '1rem',
@@ -90,7 +93,7 @@ function Home() {
       ) : null}
 
       {/* Wallet Connection Section - Solo mostrar si está conectado */}
-      {wallet && wallet.connected && (
+      {walletConnected && (
       <div className="wallet-section">
         <div className="wallet-connected-card">
           <div className="wallet-status">
@@ -98,10 +101,12 @@ function Home() {
             <div className="wallet-info">
               <h3>Wallet Conectado</h3>
               <p className="wallet-address">
-                {wallet.address?.substring(0, 8)}...{wallet.address?.substring(36)}
+                {dynamicWallet.address?.substring(0, 8)}...{dynamicWallet.address?.substring(36)}
               </p>
               <p className="wallet-status-text">
-                ✅ Conectado a Story Testnet
+                {dynamicWallet.network === 1315 
+                  ? '✅ Conectado a Story Testnet'
+                  : `⚠️ Red: ${dynamicWallet.network || 'Desconocida'} (Cambia a Story Testnet)`}
               </p>
             </div>
           </div>
@@ -123,16 +128,16 @@ function Home() {
           <div className="icon">👤</div>
           <h3>Mi Perfil</h3>
           <p>Ver mis IPs registrados y regalías</p>
-          {wallet && wallet.connected && (
+          {walletConnected && (
             <div className="profile-badge">Wallet conectado ✓</div>
           )}
         </Link>
 
         <Link 
           to="/upload" 
-          className={`action-card purple ${!wallet || !wallet.connected ? 'disabled' : ''}`}
+          className={`action-card purple ${!walletConnected ? 'disabled' : ''}`}
           onClick={(e) => {
-            if (!wallet || !wallet.connected) {
+            if (!walletConnected) {
               e.preventDefault();
               alert('⚠️ Primero debes conectar tu wallet para registrar IPs');
             }
@@ -145,13 +150,7 @@ function Home() {
 
         <Link 
           to="/marketplace" 
-          className={`action-card green-lila ${!wallet || !wallet.connected ? 'disabled' : ''}`}
-          onClick={(e) => {
-            if (!wallet || !wallet.connected) {
-              e.preventDefault();
-              alert('⚠️ Primero debes conectar tu wallet para acceder al marketplace');
-            }
-          }}
+          className="action-card green-lila"
         >
           <div className="icon">🛒</div>
           <h3>Marketplace</h3>
@@ -160,9 +159,9 @@ function Home() {
 
         <Link 
           to="/claim" 
-          className={`action-card purple ${!wallet || !wallet.connected ? 'disabled' : ''}`}
+          className={`action-card purple ${!walletConnected ? 'disabled' : ''}`}
           onClick={(e) => {
-            if (!wallet || !wallet.connected) {
+            if (!walletConnected) {
               e.preventDefault();
               alert('⚠️ Primero debes conectar tu wallet para reclamar regalías');
             }

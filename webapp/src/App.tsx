@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import ErrorBoundary from './components/ErrorBoundary';
 import { setupInsideIframe } from '@dynamic-labs/utils';
 import { isInTelegram } from './utils/telegram';
+import { TelegramAutoLogin } from './components/TelegramAutoLogin';
 
 // CRÍTICO: Lazy load de DynamicProvider para no bloquear la carga inicial
 // Dynamic es pesado y puede ralentizar significativamente la carga
@@ -107,6 +108,8 @@ function App() {
     <ErrorBoundary>
       <Suspense fallback={<LoadingFallback />}>
         <DynamicProvider>
+          {/* CRÍTICO: TelegramAutoLogin maneja el auto-login automático con Telegram Auto-Wallets */}
+          <TelegramAutoLogin />
           <Router>
             <Suspense fallback={<LoadingFallback />}>
               <Routes>
