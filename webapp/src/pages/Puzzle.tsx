@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import Navigation from '../components/Navigation';
 import { getTelegramUser } from '../utils/telegram';
+import { useDynamicWallet } from '../hooks/useDynamicWallet';
 import './Puzzle.css';
 
 // CRÍTICO: En producción, VITE_API_URL DEBE estar configurado en Vercel
@@ -26,7 +27,11 @@ function Puzzle() {
   const [showPreview, setShowPreview] = useState(true); // Mostrar vista previa por defecto
   const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null);
   const [derivativeIpId, setDerivativeIpId] = useState<string | null>(null);
+  const [derivativeTokenId, setDerivativeTokenId] = useState<string | null>(null); // CRÍTICO: Token ID del derivado
   const [derivativeTxHash, setDerivativeTxHash] = useState<string | null>(null);
+  
+  // CRÍTICO: Obtener address de Dynamic del usuario
+  const dynamicWallet = useDynamicWallet();
 
   useEffect(() => {
     loadPuzzle();
@@ -139,6 +144,11 @@ function Puzzle() {
     const currentTime = time;
     console.log(`⏱️  Tiempo del puzzle capturado: ${currentTime} segundos`);
     
+    // CRÍTICO: Obtener address de Dynamic del usuario que resolvió el puzzle
+    // Esto es necesario para enviar el token derivado a la wallet correcta
+    const userDynamicAddress = dynamicWallet.address;
+    console.log(`🔍 Address de Dynamic del usuario: ${userDynamicAddress || 'No disponible'}`);
+    
     try {
       const response = await axios.post(`${API_URL}/puzzle/validate`, {
         puzzleId: puzzle.puzzleId,
@@ -147,6 +157,7 @@ function Puzzle() {
         posterUrl: posterUrl,
         telegramUserId: telegramUserId, // Enviar telegramUserId al backend
         puzzleTimeSeconds: currentTime, // Enviar tiempo actual del puzzle
+        userDynamicAddress: userDynamicAddress, // CRÍTICO: Enviar address de Dynamic si está disponible
       });
       
       // Verificar si hay regalías pendientes
@@ -166,10 +177,12 @@ function Puzzle() {
         
         // Guardar datos del IP derivado y canal para mostrar en la UI
         const derivativeIpIdValue = response.data.derivativeIpId;
+        const derivativeTokenIdValue = response.data.derivativeTokenId; // CRÍTICO: Token ID del derivado
         const derivativeTxHashValue = response.data.derivativeTxHash;
         const channelLink = response.data.channelLink;
         
         setDerivativeIpId(derivativeIpIdValue);
+        setDerivativeTokenId(derivativeTokenIdValue); // CRÍTICO: Guardar token ID
         setDerivativeTxHash(derivativeTxHashValue);
         
         // NUEVA LÓGICA: Mostrar mensaje sobre video reenviado y regalía creada
@@ -314,7 +327,9 @@ function Puzzle() {
                 </p>
                 {derivativeIpId && (
                   <a 
-                    href={`https://aeneid.storyscan.io/token/${derivativeIpId}`}
+                    href={derivativeTokenId 
+                      ? `https://aeneid.storyscan.io/token/${derivativeIpId}/instance/${derivativeTokenId}`
+                      : `https://aeneid.storyscan.io/token/${derivativeIpId}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
@@ -334,6 +349,7 @@ function Puzzle() {
                     }}
                   >
                     Ver IP en Explorer: {derivativeIpId.substring(0, 20)}...
+                    {derivativeTokenId && ` (Instance: ${derivativeTokenId})`}
                   </a>
                 )}
                 {derivativeTxHash && (

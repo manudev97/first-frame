@@ -217,24 +217,28 @@ router.post('/register-ip', async (req, res) => {
 // Registrar derivado (póster del puzzle)
 router.post('/register-derivative', async (req, res) => {
   try {
-    const { parentIpId, posterMetadata, licenseTokenId, userTelegramId } = req.body;
+    const { parentIpId, posterMetadata, licenseTokenId, userTelegramId, userDynamicAddress } = req.body;
     
     const client = await createStoryClient();
     
-    // IMPORTANTE: El token derivado debe ir al wallet del usuario que resolvió el puzzle
-    // No al bot wallet
+    // CRÍTICO: El token derivado debe ir al wallet de Dynamic del usuario que resolvió el puzzle
+    // Prioridad: 1. userDynamicAddress (Dynamic), 2. wallet determinística, 3. bot wallet
     let recipient: `0x${string}`;
     
-    if (userTelegramId) {
-      // Generar wallet determinístico del usuario
+    if (userDynamicAddress && typeof userDynamicAddress === 'string' && userDynamicAddress.startsWith('0x') && userDynamicAddress.length === 42) {
+      // CRÍTICO: Usar address de Dynamic del usuario
+      recipient = userDynamicAddress as `0x${string}`;
+      console.log(`✅ Token derivado se enviará a la wallet de Dynamic del usuario: ${recipient}`);
+    } else if (userTelegramId) {
+      // Fallback: Generar wallet determinística del usuario
       const { generateDeterministicAddress } = await import('../services/deterministicWalletService');
       recipient = generateDeterministicAddress(userTelegramId);
-      console.log(`✅ Token derivado se enviará al wallet del usuario: ${recipient}`);
+      console.log(`⚠️  No hay address de Dynamic, usando wallet determinística del usuario: ${recipient}`);
     } else {
       // Fallback: usar bot wallet si no hay userTelegramId
       const account = privateKeyToAccount(process.env.STORY_PRIVATE_KEY as `0x${string}`);
       recipient = account.address;
-      console.warn(`⚠️  No se proporcionó userTelegramId, usando bot wallet: ${recipient}`);
+      console.warn(`⚠️  No se proporcionó userTelegramId ni userDynamicAddress, usando bot wallet: ${recipient}`);
     }
     
     // Registrar el póster como IP derivado
@@ -242,7 +246,7 @@ router.post('/register-derivative', async (req, res) => {
       nft: {
         type: 'mint',
         spgNftContract: process.env.STORY_SPG_NFT_CONTRACT! as `0x${string}`,
-        recipient: recipient, // Wallet del usuario que resolvió el puzzle
+        recipient: recipient, // Wallet del usuario que resolvió el puzzle (Dynamic o determinística)
       },
       ipMetadata: {
         ipMetadataURI: posterMetadata.uri,
@@ -252,10 +256,31 @@ router.post('/register-derivative', async (req, res) => {
       },
     });
 
+    // CRÍTICO: Obtener tokenId desde la transacción
+    let tokenId: bigint | null = null;
+    try {
+      const { getIPDetailsFromTransaction } = await import('../services/txParser');
+      const ipDetails = await getIPDetailsFromTransaction(
+        tx.txHash as `0x${string}`,
+        process.env.STORY_SPG_NFT_CONTRACT as `0x${string}`
+      );
+      if (ipDetails && ipDetails.tokenId) {
+        tokenId = ipDetails.tokenId;
+        console.log(`✅ Token ID del derivado obtenido: ${tokenId.toString()}`);
+      }
+    } catch (parseError: any) {
+      console.warn('⚠️  No se pudo obtener tokenId del derivado desde la transacción:', parseError.message);
+    }
+
     // TODO: Después de registrar, necesitamos hacer attach como derivado
     // Esto requiere una llamada adicional al SDK
 
-    res.json({ success: true, txHash: tx.txHash, ipId: tx.ipId });
+    res.json({ 
+      success: true, 
+      txHash: tx.txHash, 
+      ipId: tx.ipId,
+      tokenId: tokenId ? tokenId.toString() : null, // CRÍTICO: Incluir token ID para el link del explorer
+    });
   } catch (error: any) {
     console.error('Error registrando derivado:', error);
     res.status(500).json({ success: false, error: error.message });

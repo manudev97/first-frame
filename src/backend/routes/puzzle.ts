@@ -66,7 +66,9 @@ router.post('/validate', async (req, res) => {
             const posterMetadata = posterMetadataResponse.data;
             
             // Registrar el póster como IP derivado
-            // IMPORTANTE: Enviar userTelegramId para que el token vaya al wallet del usuario
+            // CRÍTICO: Enviar userDynamicAddress si está disponible para usar la wallet de Dynamic
+            // Si no está disponible, usar userTelegramId para generar wallet determinística
+            const userDynamicAddress = req.body.userDynamicAddress; // Address de Dynamic del usuario
             const derivativeResponse = await axios.post(`${backendUrl}/api/story/register-derivative`, {
               parentIpId: ipId,
               posterMetadata: {
@@ -75,12 +77,16 @@ router.post('/validate', async (req, res) => {
                 nftUri: posterMetadata.metadataUri,
                 nftHash: posterMetadata.metadataHash,
               },
-              userTelegramId: telegramUserId, // IMPORTANTE: Para enviar el token al wallet del usuario
+              userTelegramId: telegramUserId, // Para fallback si no hay Dynamic address
+              userDynamicAddress: userDynamicAddress, // CRÍTICO: Address de Dynamic del usuario
             });
             
             if (derivativeResponse.data.success) {
               derivativeIpId = derivativeResponse.data.ipId;
               derivativeTxHash = derivativeResponse.data.txHash;
+              // CRÍTICO: También obtener tokenId si está disponible
+              const derivativeTokenId = derivativeResponse.data.tokenId;
+              console.log(`✅ IP derivado registrado: ${derivativeIpId}${derivativeTokenId ? ` (Token ID: ${derivativeTokenId})` : ''}`);
             }
           }
         } catch (derivativeError) {
@@ -257,11 +263,33 @@ router.post('/validate', async (req, res) => {
         }
       }
       
+      // CRÍTICO: Obtener tokenId del derivado si está disponible
+      let derivativeTokenId = null;
+      if (derivativeIpId) {
+        try {
+          // Intentar obtener tokenId desde la transacción del derivado
+          const { getIPDetailsFromTransaction } = await import('../services/txParser');
+          if (derivativeTxHash) {
+            const ipDetails = await getIPDetailsFromTransaction(
+              derivativeTxHash as `0x${string}`,
+              process.env.STORY_SPG_NFT_CONTRACT as `0x${string}`
+            );
+            if (ipDetails && ipDetails.tokenId) {
+              derivativeTokenId = ipDetails.tokenId.toString();
+              console.log(`✅ Token ID del derivado obtenido: ${derivativeTokenId}`);
+            }
+          }
+        } catch (tokenError) {
+          console.warn('No se pudo obtener tokenId del derivado:', tokenError);
+        }
+      }
+      
       res.json({
         success: true,
         message: '¡Puzzle completado correctamente!',
         accessGranted: true,
         derivativeIpId: derivativeIpId,
+        derivativeTokenId: derivativeTokenId, // CRÍTICO: Incluir token ID para el link del explorer
         derivativeTxHash: derivativeTxHash,
         videoForwarded: videoForwarded,
         royaltyCreated: royaltyCreated,
