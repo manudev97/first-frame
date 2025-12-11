@@ -139,8 +139,20 @@ function Upload() {
       const telegramUser = getTelegramUser();
       const uploaderId = telegramUser ? `TelegramUser_${telegramUser.id}` : 'Anonymous';
       
-      // Obtener wallet del usuario para pagar el fee (usar Dynamic Wallet)
-      if (!dynamicWallet.connected || !dynamicWallet.address) {
+      // CRÍTICO: Obtener wallet del usuario para pagar el fee (usar Dynamic Wallet)
+      // Verificar de múltiples formas para asegurar que detectamos la wallet
+      const walletAddress = dynamicWallet.address || 
+                           dynamicWallet.primaryWallet?.address || 
+                           dynamicWallet.primaryWallet?.accounts?.[0]?.address;
+      
+      if (!dynamicWallet.connected || !walletAddress) {
+        console.error('❌ [Upload] Wallet no conectada:', {
+          connected: dynamicWallet.connected,
+          address: dynamicWallet.address,
+          primaryWallet: dynamicWallet.primaryWallet,
+          primaryWalletAddress: dynamicWallet.primaryWallet?.address,
+          accounts: dynamicWallet.primaryWallet?.accounts,
+        });
         throw new Error('Debes conectar tu wallet primero para registrar IPs. Ve a tu perfil y conecta tu wallet de Dynamic.');
       }
       
@@ -148,6 +160,12 @@ function Upload() {
       if (dynamicWallet.network !== 1315) {
         throw new Error('Debes estar conectado a Story Testnet (Chain ID: 1315). Cambia la red en tu wallet de Dynamic.');
       }
+      
+      console.log('✅ [Upload] Wallet verificada:', {
+        address: walletAddress,
+        network: dynamicWallet.network,
+        connected: dynamicWallet.connected,
+      });
 
       const storyResponse = await axios.post(`${API_URL}/story/register-ip`, {
         metadata: {
@@ -164,7 +182,7 @@ function Upload() {
         imdbId: movieData?.imdbId || movieData?.imdbID,
         uploader: uploaderId, // CRÍTICO: Enviar uploader para que se muestre en el perfil
         uploaderName: telegramUser ? `${telegramUser.first_name} ${telegramUser.last_name || ''}`.trim() : undefined, // Enviar nombre del uploader
-        userWalletAddress: dynamicWallet.address, // CRÍTICO: Wallet de Dynamic del usuario para pagar fees
+        userWalletAddress: walletAddress, // CRÍTICO: Wallet de Dynamic del usuario para pagar fees (usar la address detectada)
         // NO pasar licenseTerms - se registrarán después
       });
 
