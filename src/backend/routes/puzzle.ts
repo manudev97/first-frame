@@ -166,42 +166,85 @@ router.post('/validate', async (req, res) => {
       if (ipId && telegramUserId) {
         try {
           // 1. Obtener información del IP del registry
-          // CRÍTICO: El ipId puede ser el contrato SPG NFT, necesitamos buscar por tokenId si está disponible
+          // CRÍTICO: PRIORIZAR búsqueda por tokenId si está disponible (más preciso que ipId)
+          // El ipId puede ser el contrato SPG NFT, por lo que tokenId es la clave única correcta
           const { getIPById, loadRegisteredIPs } = await import('../services/ipRegistry');
-          let ip = await getIPById(ipId);
+          let ip: any = null;
           let correctIpId = ipId; // Variable para almacenar el IP ID correcto
           
-          // CRÍTICO: Si no encontramos el IP por ipId, puede ser que el ipId sea el contrato
-          // Intentar buscar por tokenId si está disponible en los parámetros del request
+          // PRIORIDAD 1: Buscar por tokenId (MÁS PRECISO - clave única)
+          const tokenId = req.body.tokenId; // TokenId puede venir en el request
+          if (tokenId) {
+            console.log(`🔍 Buscando IP por tokenId: ${tokenId} (PRIORIDAD ALTA)`);
+            const allIPs = await loadRegisteredIPs();
+            ip = allIPs.find((i) => 
+              i.tokenId === tokenId.toString() || 
+              i.tokenId === tokenId ||
+              (i.tokenId && i.tokenId.toString() === tokenId.toString())
+            ) || null;
+            if (ip) {
+              console.log(`✅ IP encontrado por tokenId ${tokenId}: ${ip.title} (IP ID: ${ip.ipId}, Token ID: ${ip.tokenId})`);
+              // CRÍTICO: Actualizar el ipId correcto al del IP encontrado
+              correctIpId = ip.ipId;
+            } else {
+              console.warn(`⚠️  No se encontró IP con tokenId ${tokenId}`);
+            }
+          }
+          
+          // PRIORIDAD 2: Si no encontramos por tokenId, buscar por ipId
           if (!ip) {
-            console.warn(`⚠️  IP ${ipId} no encontrado directamente. Intentando buscar por tokenId...`);
-            const tokenId = req.body.tokenId; // TokenId puede venir en el request
-            if (tokenId) {
-              const allIPs = await loadRegisteredIPs();
-              ip = allIPs.find((i) => i.tokenId === tokenId.toString() || i.tokenId === tokenId) || null;
-              if (ip) {
-                console.log(`✅ IP encontrado por tokenId ${tokenId}: ${ip.title} (IP ID: ${ip.ipId})`);
-                // CRÍTICO: Actualizar el ipId correcto al del IP encontrado
-                correctIpId = ip.ipId;
+            console.log(`🔍 Buscando IP por ipId: ${ipId}`);
+            ip = await getIPById(ipId);
+            if (ip) {
+              console.log(`✅ IP encontrado por ipId: ${ip.title} (Token ID: ${ip.tokenId || 'N/A'})`);
+              // Si encontramos por ipId pero tenemos un tokenId en el request, verificar que coincida
+              if (tokenId && ip.tokenId && ip.tokenId.toString() !== tokenId.toString()) {
+                console.warn(`⚠️  ADVERTENCIA: El IP encontrado por ipId tiene tokenId ${ip.tokenId}, pero se buscó ${tokenId}. Puede ser un IP incorrecto.`);
+                // Buscar específicamente por el tokenId correcto
+                const allIPs = await loadRegisteredIPs();
+                const correctIP = allIPs.find((i) => 
+                  i.tokenId === tokenId.toString() || 
+                  i.tokenId === tokenId ||
+                  (i.tokenId && i.tokenId.toString() === tokenId.toString())
+                );
+                if (correctIP) {
+                  console.log(`✅ IP CORRECTO encontrado por tokenId ${tokenId}: ${correctIP.title} (IP ID: ${correctIP.ipId})`);
+                  ip = correctIP;
+                  correctIpId = correctIP.ipId;
+                }
               }
             }
           }
           
-          // CRÍTICO: Si aún no encontramos el IP, intentar buscar por título si está disponible
+          // PRIORIDAD 3: Si aún no encontramos el IP, intentar buscar por título si está disponible
           if (!ip && req.body.title) {
-            console.warn(`⚠️  IP no encontrado por ipId ni tokenId. Intentando buscar por título: "${req.body.title}"`);
+            console.warn(`⚠️  IP no encontrado por tokenId ni ipId. Intentando buscar por título: "${req.body.title}"`);
             const allIPs = await loadRegisteredIPs();
             const matchingIPs = allIPs.filter((i) => 
               i.title?.toLowerCase().includes(req.body.title.toLowerCase()) ||
               req.body.title.toLowerCase().includes(i.title?.toLowerCase() || '')
             );
             if (matchingIPs.length > 0) {
-              // Priorizar IPs que tienen video
-              ip = matchingIPs.find((i) => i.videoFileId || i.channelMessageId) || matchingIPs[0];
-              if (ip) {
-                console.log(`✅ IP encontrado por título "${req.body.title}": ${ip.title} (IP ID: ${ip.ipId})`);
-                // CRÍTICO: Actualizar el ipId correcto al del IP encontrado
-                correctIpId = ip.ipId;
+              // Si tenemos tokenId, priorizar IPs que coincidan con el tokenId
+              if (tokenId) {
+                const tokenMatch = matchingIPs.find((i) => 
+                  i.tokenId === tokenId.toString() || 
+                  i.tokenId === tokenId ||
+                  (i.tokenId && i.tokenId.toString() === tokenId.toString())
+                );
+                if (tokenMatch) {
+                  ip = tokenMatch;
+                  console.log(`✅ IP encontrado por título y tokenId "${req.body.title}" (tokenId: ${tokenId}): ${ip.title} (IP ID: ${ip.ipId})`);
+                  correctIpId = ip.ipId;
+                }
+              }
+              // Si no encontramos por tokenId, priorizar IPs que tienen video
+              if (!ip) {
+                ip = matchingIPs.find((i) => i.videoFileId || i.channelMessageId) || matchingIPs[0];
+                if (ip) {
+                  console.log(`✅ IP encontrado por título "${req.body.title}": ${ip.title} (IP ID: ${ip.ipId}, Token ID: ${ip.tokenId || 'N/A'})`);
+                  correctIpId = ip.ipId;
+                }
               }
             }
           }
@@ -238,7 +281,7 @@ router.post('/validate', async (req, res) => {
           const finalIpId = correctIpId;
           
           // CRÍTICO: Si el IP no tiene videoFileId ni channelMessageId, intentar buscarlo en el canal
-          // usando el título del IP
+          // usando el título del IP y el tokenId si está disponible
           if (ip && !ip.videoFileId && !ip.channelMessageId && ip.title) {
             console.log(`⚠️  IP no tiene videoFileId ni channelMessageId. Intentando buscar en el canal por título: "${ip.title}"`);
             try {
@@ -247,23 +290,54 @@ router.post('/validate', async (req, res) => {
               const channelId = process.env.TELEGRAM_CHANNEL_ID || process.env.TELEGRAM_CHANNEL_LINK;
               
               if (channelId && bot) {
+                // CRÍTICO: Buscar por título del IP (el bot debe buscar en el caption del canal)
                 const matchingVideos = await searchVideosInChannelByCaption(bot, channelId, ip.title);
                 if (matchingVideos.length > 0) {
-                  const matchingVideo = matchingVideos.find(v => v.ipId.toLowerCase() === ipId.toLowerCase()) || matchingVideos[0];
-                  if (matchingVideo.videoFileId) {
-                    ip.videoFileId = matchingVideo.videoFileId;
-                    console.log(`✅ VideoFileId encontrado en canal para "${ip.title}": ${matchingVideo.videoFileId.substring(0, 20)}...`);
-                  }
-                  if (matchingVideo.channelMessageId) {
-                    ip.channelMessageId = matchingVideo.channelMessageId;
-                    console.log(`✅ ChannelMessageId encontrado en canal para "${ip.title}": ${matchingVideo.channelMessageId}`);
+                  // CRÍTICO: Si tenemos tokenId, priorizar videos que coincidan con el tokenId
+                  let matchingVideo;
+                  if (ip.tokenId) {
+                    // Buscar en el registry por tokenId para encontrar el video correcto
+                    const allIPs = await loadRegisteredIPs();
+                    const ipWithToken = allIPs.find((i) => 
+                      i.tokenId === ip.tokenId.toString() || 
+                      i.tokenId === ip.tokenId ||
+                      (i.tokenId && i.tokenId.toString() === ip.tokenId.toString())
+                    );
+                    if (ipWithToken && (ipWithToken.videoFileId || ipWithToken.channelMessageId)) {
+                      matchingVideo = {
+                        ipId: ipWithToken.ipId,
+                        title: ipWithToken.title,
+                        channelMessageId: ipWithToken.channelMessageId,
+                        videoFileId: ipWithToken.videoFileId,
+                      };
+                      console.log(`✅ Video encontrado por tokenId ${ip.tokenId} en registry: ${ipWithToken.title}`);
+                    }
                   }
                   
-                  // Guardar los datos encontrados en el registry
-                  if (ip.videoFileId || ip.channelMessageId) {
-                    const { saveRegisteredIP } = await import('../services/ipRegistry');
-                    await saveRegisteredIP(ip);
-                    console.log(`✅ IP actualizado con videoFileId y channelMessageId encontrados en el canal`);
+                  // Si no encontramos por tokenId, usar el primer video que coincida con el título
+                  if (!matchingVideo) {
+                    matchingVideo = matchingVideos.find(v => 
+                      v.ipId.toLowerCase() === correctIpId.toLowerCase() || 
+                      v.title.toLowerCase() === ip.title.toLowerCase()
+                    ) || matchingVideos[0];
+                  }
+                  
+                  if (matchingVideo) {
+                    if (matchingVideo.videoFileId) {
+                      ip.videoFileId = matchingVideo.videoFileId;
+                      console.log(`✅ VideoFileId encontrado en canal para "${ip.title}": ${matchingVideo.videoFileId.substring(0, 20)}...`);
+                    }
+                    if (matchingVideo.channelMessageId) {
+                      ip.channelMessageId = matchingVideo.channelMessageId;
+                      console.log(`✅ ChannelMessageId encontrado en canal para "${ip.title}": ${matchingVideo.channelMessageId}`);
+                    }
+                    
+                    // Guardar los datos encontrados en el registry
+                    if (ip.videoFileId || ip.channelMessageId) {
+                      const { saveRegisteredIP } = await import('../services/ipRegistry');
+                      await saveRegisteredIP(ip);
+                      console.log(`✅ IP actualizado con videoFileId y channelMessageId encontrados en el canal`);
+                    }
                   }
                 }
               }
@@ -389,6 +463,7 @@ router.post('/validate', async (req, res) => {
                 }
               } else if (ip.channelMessageId) {
                 // CRÍTICO: Reenviar desde el canal usando channelMessageId
+                // IMPORTANTE: Solo usar forwardMessage si NO tenemos videoFileId (evitar envío doble)
                 const channelId = process.env.TELEGRAM_CHANNEL_ID || process.env.TELEGRAM_CHANNEL_LINK;
                 // Formatear channelId correctamente si es necesario (declarar fuera del try para usar en catch)
                 let finalChannelId: string | number = channelId || '';
@@ -410,29 +485,38 @@ router.post('/validate', async (req, res) => {
                     console.log(`   - Channel ID: ${finalChannelId}`);
                     console.log(`   - Message ID: ${ip.channelMessageId}`);
                     console.log(`   - Usuario: ${telegramUserId}`);
+                    console.log(`   - IP: ${ip.title} (Token ID: ${ip.tokenId || 'N/A'})`);
                     
-                    // CRÍTICO: Intentar obtener el video del mensaje del canal primero
-                    // Si tenemos channelMessageId, podemos usar copyMessage o forwardMessage
-                    // forwardMessage es más confiable para mantener el video original
+                    // CRÍTICO: Reenviar el video desde el canal
+                    // forwardMessage mantiene el video original y su caption si lo tiene
                     await bot.telegram.forwardMessage(
                       telegramUserId,
                       finalChannelId,
-                      ip.channelMessageId
+                      ip.channelMessageId,
+                      {
+                        // NO agregar caption aquí - el video del canal ya tiene su caption
+                        // Enviaremos un mensaje separado con información de regalía
+                      }
                     );
                     
                     console.log(`✅ Video reenviado exitosamente desde canal`);
                     
-                    // CRÍTICO: Enviar mensaje con información de regalía y caption completo
-                    const infoMessage = fullCaption + `\n\n⚠️ Este video está protegido. Debes pagar la regalía (0.1 IP) para poder reenviarlo.\n\n💳 Usa el comando /profile en el bot para pagar tus regalías pendientes.`;
+                    // CRÍTICO: Enviar mensaje SEPARADO con información de regalía
+                    // Esto evita duplicar el caption del video original
+                    const infoMessage = `🎉 Felicidades haz resuelto el Puzzle puedes compartir este video y pagar tus regalías en : @firstframe_ipbot\n\n` +
+                      `⚠️ Este video está protegido. Debes pagar la regalía (0.1 IP) para poder reenviarlo.\n` +
+                      `💳 Regalía pendiente: 0.1 IP\n` +
+                      (ownerAddress ? `👤 Dueño: ${ownerAddress.substring(0, 8)}...${ownerAddress.substring(36)}\n💼 Paga con Dynamic usando esta address\n` : '') +
+                      `💳 Usa el comando /profile en el bot para pagar tus regalías pendientes.`;
                     
-                    console.log(`📤 Enviando mensaje informativo sobre regalía`);
+                    console.log(`📤 Enviando mensaje informativo sobre regalía (separado del video)`);
                     await bot.telegram.sendMessage(
                       telegramUserId,
                       infoMessage
                     );
                     
                     videoForwarded = true;
-                    console.log(`✅ Video y mensaje enviados exitosamente al usuario ${telegramUserId} para IP ${finalIpId} (${ip.title}) desde canal (messageId: ${ip.channelMessageId})`);
+                    console.log(`✅ Video y mensaje enviados exitosamente al usuario ${telegramUserId} para IP ${finalIpId} (${ip.title}, Token ID: ${ip.tokenId || 'N/A'}) desde canal (messageId: ${ip.channelMessageId})`);
                   } catch (forwardError: any) {
                     console.error(`❌ Error reenviando desde canal:`, forwardError);
                     console.error(`   Detalles del error:`, {
@@ -468,7 +552,7 @@ router.post('/validate', async (req, res) => {
                   });
                 }
               } else {
-                console.warn(`⚠️  No se puede reenviar video: IP ${ipId} no tiene videoFileId ni channelMessageId`);
+                console.warn(`⚠️  No se puede reenviar video: IP ${finalIpId} (${ip.title}, Token ID: ${ip.tokenId || 'N/A'}) no tiene videoFileId ni channelMessageId`);
               }
             } catch (forwardError: any) {
               console.error(`❌ Error reenviando video al usuario ${telegramUserId}:`, forwardError);
