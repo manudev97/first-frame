@@ -43,19 +43,27 @@ router.get('/list', async (req, res) => {
     }
     
     // 3. Combinar: usar blockchain como fuente de verdad, registry para detalles adicionales
+    // CRÍTICO: Usar tokenId como clave única cuando todos tienen el mismo ipId (contrato)
     const allIPsMap = new Map<string, any>();
     
     // Primero agregar todos los IPs del registry
     for (const ip of registryIPs) {
       if (ip.posterUrl && ip.posterUrl.trim() !== '') {
-        allIPsMap.set(ip.tokenId || ip.ipId, ip);
+        // CRÍTICO: Usar tokenId como clave única si existe, sino usar ipId
+        const key = ip.tokenId ? `token_${ip.tokenId}`.toLowerCase() : ip.ipId.toLowerCase();
+        allIPsMap.set(key, ip);
       }
     }
     
     // Luego agregar/actualizar con tokens de blockchain
     for (const token of blockchainTokens) {
       if (token.posterUrl && token.posterUrl.trim() !== '') {
-        const key = token.tokenId || token.ipId;
+        // CRÍTICO: Usar tokenId como clave única cuando todos tienen el mismo ipId
+        // Formato: "token_{tokenId}" para asegurar unicidad
+        const key = token.tokenId ? `token_${token.tokenId}`.toLowerCase() : (token.ipId || '').toLowerCase();
+        
+        if (!key) continue; // Saltar si no hay tokenId ni ipId
+        
         const existing = allIPsMap.get(key);
         
         if (existing) {
@@ -70,10 +78,31 @@ router.get('/list', async (req, res) => {
             uploaderName: existing.uploaderName || token.uploaderName,
           });
         } else {
+          // CRÍTICO: Buscar si hay un video en el canal que coincida con el nombre del token
+          if (token.title) {
+            try {
+              // Buscar en el registry local por nombre del token
+              const matchingIP = registryIPs.find(ip => 
+                ip.title?.toLowerCase().includes(token.title.toLowerCase()) ||
+                token.title.toLowerCase().includes(ip.title?.toLowerCase() || '')
+              );
+              
+              if (matchingIP && (matchingIP.channelMessageId || matchingIP.videoFileId)) {
+                token.channelMessageId = matchingIP.channelMessageId;
+                token.videoFileId = matchingIP.videoFileId;
+                console.log(`✅ Video encontrado en registry para "${token.title}": messageId=${matchingIP.channelMessageId}`);
+              }
+            } catch (searchError: any) {
+              // No crítico si falla la búsqueda
+              console.warn(`⚠️  No se pudo buscar video para "${token.title}":`, searchError.message);
+            }
+          }
           allIPsMap.set(key, token);
         }
       }
     }
+    
+    console.log(`📊 Total IPs únicos después de agregar tokens de blockchain: ${allIPsMap.size}`);
     
     const allIPs = Array.from(allIPsMap.values());
     

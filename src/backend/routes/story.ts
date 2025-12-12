@@ -341,9 +341,11 @@ router.post('/register-license', async (req, res) => {
     // Solución: Si no hay currency token y no hay regalías comerciales, usar un currency token "zero" válido
     // O mejor aún, verificar si podemos omitir completamente el registro de licencia si no hay regalías
     
-    // Si no hay currency token y no hay regalías comerciales, intentar registrar sin currency
-    // Pero el SDK puede requerir currency de todos modos, así que usamos el address zero
-    const finalCurrency = hasValidCurrency ? currency : '0x0000000000000000000000000000000000000000';
+    // CRÍTICO: El SDK requiere un currency token válido incluso sin regalías comerciales
+    // Usar MockERC20 token address como currency por defecto
+    const { getRoyaltyTokenAddress } = await import('../services/tokenBalanceService');
+    const mockTokenAddress = getRoyaltyTokenAddress();
+    const finalCurrency = hasValidCurrency ? currency : mockTokenAddress;
     
     // Asegurar que todos los campos numéricos tengan valores válidos (no undefined)
     // El SDK convierte algunos campos a BigInt, por lo que no pueden ser undefined
