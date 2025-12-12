@@ -215,40 +215,63 @@ router.post('/validate', async (req, res) => {
             
             if (videoResult) {
               // CRÍTICO: Si encontramos el video, buscar el IP completo en el registry
+              // PERO usar el tokenId del request (más preciso) para asegurar que es el IP correcto
               const { getIPByTokenId, loadRegisteredIPs } = await import('../services/ipRegistry');
               
-              // Intentar obtener el IP completo usando el tokenId o ipId del video encontrado
+              // PRIORIDAD: Buscar por tokenId del REQUEST (más preciso que el del video encontrado)
               if (tokenId) {
                 ip = await getIPByTokenId(tokenId.toString());
+                if (ip) {
+                  console.log(`✅ IP encontrado por tokenId del REQUEST ${tokenId}: ${ip.title} (Token ID: ${ip.tokenId})`);
+                  // CRÍTICO: Actualizar con información del video encontrado
+                  if (videoResult.fileId) {
+                    ip.videoFileId = videoResult.fileId;
+                  }
+                  if (videoResult.messageId) {
+                    ip.channelMessageId = videoResult.messageId;
+                  }
+                  // CRÍTICO: Asegurar que el tokenId del IP coincida con el del request
+                  if (ip.tokenId !== tokenId.toString()) {
+                    console.warn(`⚠️  TokenId del IP (${ip.tokenId}) no coincide con el del request (${tokenId}). Actualizando...`);
+                    ip.tokenId = tokenId.toString();
+                  }
+                  correctIpId = ip.ipId;
+                }
               }
               
-              // Si no encontramos por tokenId, buscar por ipId del video encontrado
+              // Si no encontramos por tokenId del request, buscar por ipId del video encontrado
               if (!ip && videoResult.ipId) {
                 ip = await getIPById(videoResult.ipId);
+                if (ip) {
+                  console.log(`✅ IP encontrado por ipId del video: ${ip.title} (Token ID: ${ip.tokenId || 'N/A'})`);
+                  // CRÍTICO: Actualizar tokenId si el request tiene uno más preciso
+                  if (tokenId && ip.tokenId !== tokenId.toString()) {
+                    console.warn(`⚠️  Actualizando tokenId del IP de ${ip.tokenId} a ${tokenId} (del request)`);
+                    ip.tokenId = tokenId.toString();
+                  }
+                  // Actualizar con información del video
+                  if (videoResult.fileId) {
+                    ip.videoFileId = videoResult.fileId;
+                  }
+                  if (videoResult.messageId) {
+                    ip.channelMessageId = videoResult.messageId;
+                  }
+                  correctIpId = ip.ipId;
+                }
               }
               
-              // Si aún no encontramos, crear un objeto IP mínimo con la información del video
+              // Si aún no encontramos, crear un objeto IP mínimo con la información del video y el request
               if (!ip && videoResult.fileId) {
                 console.log(`⚠️  IP no encontrado en registry, pero video encontrado. Creando objeto IP mínimo.`);
                 ip = {
                   ipId: videoResult.ipId || ipId,
-                  tokenId: tokenId?.toString(),
+                  tokenId: tokenId?.toString(), // CRÍTICO: Usar tokenId del request
                   title: requestTitle || 'Video sin título',
                   videoFileId: videoResult.fileId,
                   channelMessageId: videoResult.messageId || undefined,
                 };
                 correctIpId = videoResult.ipId || ipId;
                 console.log(`✅ Video encontrado en canal (IP mínimo creado): ${ip.title} (Token ID: ${ip.tokenId || 'N/A'})`);
-              } else if (ip) {
-                // Actualizar con información del video si falta
-                if (!ip.videoFileId && videoResult.fileId) {
-                  ip.videoFileId = videoResult.fileId;
-                }
-                if (!ip.channelMessageId && videoResult.messageId) {
-                  ip.channelMessageId = videoResult.messageId;
-                }
-                correctIpId = ip.ipId;
-                console.log(`✅ IP encontrado y actualizado con información del video: ${ip.title} (Token ID: ${ip.tokenId || 'N/A'})`);
               }
             }
           }
@@ -360,9 +383,13 @@ router.post('/validate', async (req, res) => {
             // 3. Reenviar video al usuario directamente usando videoFileId o channelMessageId
             // IMPORTANTE: Usar protect_content: true para desactivar reenvío hasta que se pague
             try {
-              // Construir caption completo con toda la información del canal
-              const explorerUrl = ip.tokenId 
-                ? `https://aeneid.storyscan.io/token/${ip.ipId}/instance/${ip.tokenId}`
+              // CRÍTICO: Usar tokenId del REQUEST si está disponible (más preciso que el del IP encontrado)
+              // Esto asegura que el caption tenga los datos correctos del puzzle resuelto
+              const correctTokenId = tokenId?.toString() || ip.tokenId;
+              
+              // Construir caption completo con toda la información CORRECTA
+              const explorerUrl = correctTokenId 
+                ? `https://aeneid.storyscan.io/token/${ip.ipId}/instance/${correctTokenId}`
                 : `https://aeneid.storyscan.io/token/${ip.ipId}`;
               
               // CRÍTICO: Obtener address del dueño para mostrar en el caption
@@ -383,15 +410,18 @@ router.post('/validate', async (req, res) => {
                 console.warn('No se pudo obtener address del dueño:', addressError);
               }
               
+              // CRÍTICO: Usar título del REQUEST si está disponible (más confiable)
+              const correctTitle = requestTitle || ip.title;
+              
               let captionParts = [
-                `🎬 ${ip.title}${ip.year ? ` (${ip.year})` : ''}`,
+                `🎬 ${correctTitle}${ip.year ? ` (${ip.year})` : ''}`,
                 ``,
                 `✅ Registrado como IP en Story Protocol`,
                 `🔗 IP ID: ${ip.ipId}`,
               ];
               
-              if (ip.tokenId) {
-                captionParts.push(`📦 Instancia: ${ip.tokenId}`);
+              if (correctTokenId) {
+                captionParts.push(`📦 Instancia: ${correctTokenId}`);
               }
               
               captionParts.push(
@@ -414,11 +444,68 @@ router.post('/validate', async (req, res) => {
               
               const fullCaption = captionParts.join('\n');
               
-              // CRÍTICO: Usar videoFileId si está disponible, sino usar channelMessageId para reenviar
-              if (ip.videoFileId) {
+              // CRÍTICO: Priorizar channelMessageId si está disponible (más confiable - viene del canal)
+              // Solo usar videoFileId si NO hay channelMessageId para evitar envío doble
+              if (ip.channelMessageId) {
+                // PRIORIDAD 1: Usar forwardMessage con channelMessageId (más confiable)
+                try {
+                  const channelId = process.env.TELEGRAM_CHANNEL_ID || process.env.TELEGRAM_CHANNEL_LINK;
+                  let finalChannelId: string | number = channelId || '';
+                  
+                  if (channelId) {
+                    // Formatear channelId correctamente
+                    if (/^-?\d+$/.test(channelId.trim())) {
+                      const numericId = channelId.trim();
+                      if (!numericId.startsWith('-')) {
+                        finalChannelId = `-100${numericId}`;
+                      } else {
+                        finalChannelId = numericId;
+                      }
+                    }
+                    
+                    console.log(`📤 Intentando reenviar video desde canal usando forwardMessage (PRIORIDAD)`);
+                    console.log(`   - Channel ID: ${finalChannelId}`);
+                    console.log(`   - Message ID: ${ip.channelMessageId}`);
+                    console.log(`   - Usuario: ${telegramUserId}`);
+                    console.log(`   - IP: ${ip.title} (Token ID: ${ip.tokenId || 'N/A'})`);
+                    
+                    // CRÍTICO: Reenviar el video desde el canal (mantiene el caption original del canal)
+                    await bot.telegram.forwardMessage(
+                      telegramUserId,
+                      finalChannelId,
+                      ip.channelMessageId
+                    );
+                    
+                    console.log(`✅ Video reenviado exitosamente desde canal`);
+                    
+                    // CRÍTICO: Enviar mensaje SEPARADO con información de regalía
+                    const infoMessage = `🎉 Felicidades haz resuelto el Puzzle puedes compartir este video y pagar tus regalías en : @firstframe_ipbot\n\n` +
+                      `⚠️ Este video está protegido. Debes pagar la regalía (0.1 IP) para poder reenviarlo.\n` +
+                      `💳 Regalía pendiente: 0.1 IP\n` +
+                      (ownerAddress ? `👤 Dueño: ${ownerAddress.substring(0, 8)}...${ownerAddress.substring(36)}\n💼 Paga con Dynamic usando esta address\n` : '') +
+                      `💳 Usa el comando /profile en el bot para pagar tus regalías pendientes.`;
+                    
+                    await bot.telegram.sendMessage(telegramUserId, infoMessage);
+                    
+                    videoForwarded = true;
+                    console.log(`✅ Video y mensaje enviados exitosamente usando forwardMessage`);
+                } catch (forwardError: any) {
+                  console.error(`❌ Error reenviando desde canal:`, forwardError);
+                  // Si falla forwardMessage, intentar con sendVideo como fallback
+                  if (ip.videoFileId) {
+                    console.log(`🔄 Intentando método alternativo con sendVideo...`);
+                    throw forwardError; // Re-lanzar para que se maneje en el bloque else if
+                  } else {
+                    throw forwardError;
+                  }
+                }
+              } else if (ip.videoFileId) {
+                // PRIORIDAD 2: Usar sendVideo solo si NO hay channelMessageId
                 try {
                   console.log(`📤 Intentando enviar video usando videoFileId: ${ip.videoFileId.substring(0, 20)}...`);
                   console.log(`   - Usuario: ${telegramUserId}`);
+                  console.log(`   - Token ID del IP: ${ip.tokenId || 'N/A'}`);
+                  console.log(`   - Token ID del request: ${tokenId || 'N/A'}`);
                   console.log(`   - Caption length: ${fullCaption.length} caracteres`);
                   
                   await bot.telegram.sendVideo(
@@ -431,111 +518,14 @@ router.post('/validate', async (req, res) => {
                   );
                   
                   videoForwarded = true;
-                  console.log(`✅ Video enviado exitosamente al usuario ${telegramUserId} para IP ${finalIpId} (${ip.title}) usando videoFileId (con protección de contenido)`);
+                  console.log(`✅ Video enviado exitosamente usando videoFileId`);
                 } catch (sendError: any) {
                   console.error(`❌ Error enviando video con videoFileId:`, sendError);
-                  console.error(`   - Error code: ${sendError.response?.error_code || 'N/A'}`);
-                  console.error(`   - Error message: ${sendError.message || 'N/A'}`);
-                  console.error(`   - Intentando método alternativo con channelMessageId...`);
-                  
-                  // Intentar método alternativo si falla sendVideo
-                  if (ip.channelMessageId) {
-                    throw sendError; // Re-lanzar para que se maneje en el bloque else if
-                  } else {
-                    throw new Error(`No se pudo enviar video: ${sendError.message}. No hay channelMessageId como alternativa.`);
-                  }
-                }
-              } else if (ip.channelMessageId) {
-                // CRÍTICO: Reenviar desde el canal usando channelMessageId
-                // IMPORTANTE: Solo usar forwardMessage si NO tenemos videoFileId (evitar envío doble)
-                const channelId = process.env.TELEGRAM_CHANNEL_ID || process.env.TELEGRAM_CHANNEL_LINK;
-                // Formatear channelId correctamente si es necesario (declarar fuera del try para usar en catch)
-                let finalChannelId: string | number = channelId || '';
-                if (channelId) {
-                  try {
-                    // Formatear channelId correctamente si es necesario
-                    finalChannelId = channelId;
-                    if (/^-?\d+$/.test(channelId.trim())) {
-                      const numericId = channelId.trim();
-                      if (!numericId.startsWith('-')) {
-                        finalChannelId = `-100${numericId}`;
-                        console.log(`✅ Channel ID formateado: ${finalChannelId}`);
-                      } else {
-                        finalChannelId = numericId;
-                      }
-                    }
-                    
-                    console.log(`📤 Intentando reenviar video desde canal usando forwardMessage`);
-                    console.log(`   - Channel ID: ${finalChannelId}`);
-                    console.log(`   - Message ID: ${ip.channelMessageId}`);
-                    console.log(`   - Usuario: ${telegramUserId}`);
-                    console.log(`   - IP: ${ip.title} (Token ID: ${ip.tokenId || 'N/A'})`);
-                    
-                    // CRÍTICO: Reenviar el video desde el canal
-                    // forwardMessage mantiene el video original y su caption si lo tiene
-                    await bot.telegram.forwardMessage(
-                      telegramUserId,
-                      finalChannelId,
-                      ip.channelMessageId,
-                      {
-                        // NO agregar caption aquí - el video del canal ya tiene su caption
-                        // Enviaremos un mensaje separado con información de regalía
-                      }
-                    );
-                    
-                    console.log(`✅ Video reenviado exitosamente desde canal`);
-                    
-                    // CRÍTICO: Enviar mensaje SEPARADO con información de regalía
-                    // Esto evita duplicar el caption del video original
-                    const infoMessage = `🎉 Felicidades haz resuelto el Puzzle puedes compartir este video y pagar tus regalías en : @firstframe_ipbot\n\n` +
-                      `⚠️ Este video está protegido. Debes pagar la regalía (0.1 IP) para poder reenviarlo.\n` +
-                      `💳 Regalía pendiente: 0.1 IP\n` +
-                      (ownerAddress ? `👤 Dueño: ${ownerAddress.substring(0, 8)}...${ownerAddress.substring(36)}\n💼 Paga con Dynamic usando esta address\n` : '') +
-                      `💳 Usa el comando /profile en el bot para pagar tus regalías pendientes.`;
-                    
-                    console.log(`📤 Enviando mensaje informativo sobre regalía (separado del video)`);
-                    await bot.telegram.sendMessage(
-                      telegramUserId,
-                      infoMessage
-                    );
-                    
-                    videoForwarded = true;
-                    console.log(`✅ Video y mensaje enviados exitosamente al usuario ${telegramUserId} para IP ${finalIpId} (${ip.title}, Token ID: ${ip.tokenId || 'N/A'}) desde canal (messageId: ${ip.channelMessageId})`);
-                  } catch (forwardError: any) {
-                    console.error(`❌ Error reenviando desde canal:`, forwardError);
-                    console.error(`   Detalles del error:`, {
-                      channelId: finalChannelId,
-                      messageId: ip.channelMessageId,
-                      userId: telegramUserId,
-                      errorMessage: forwardError.message,
-                      errorCode: forwardError.response?.error_code,
-                      errorDescription: forwardError.response?.description,
-                    });
-                    
-                    // CRÍTICO: Si forwardMessage falla, intentar obtener el videoFileId del mensaje del canal
-                    // y usar sendVideo como último recurso
-                    try {
-                      console.log(`🔄 Intentando método alternativo: obtener videoFileId del mensaje del canal...`);
-                      const channelMessage = await bot.telegram.getChat(finalChannelId);
-                      // NOTA: Telegram Bot API no permite obtener mensajes de canales directamente
-                      // Por lo tanto, debemos confiar en que el videoFileId esté guardado en el registry
-                      console.warn(`⚠️  No se puede obtener videoFileId del canal directamente. El videoFileId debe estar guardado en el registry.`);
-                      throw forwardError; // Re-lanzar el error original
-                    } catch (altError: any) {
-                      console.error(`❌ Método alternativo también falló:`, altError.message);
-                      // No fallar el puzzle completamente, pero indicar que el video no se pudo enviar
-                      console.error(`⚠️  El puzzle se completó pero el video NO se pudo enviar. El usuario debe contactar al soporte.`);
-                    }
-                  }
-                } else {
-                  console.error(`❌ ERROR CRÍTICO: TELEGRAM_CHANNEL_ID no configurado`);
-                  console.error(`   No se puede reenviar video sin el ID del canal`);
-                  console.error(`   Variables de entorno disponibles:`, {
-                    hasChannelId: !!process.env.TELEGRAM_CHANNEL_ID,
-                    hasChannelLink: !!process.env.TELEGRAM_CHANNEL_LINK,
-                  });
+                  throw sendError;
                 }
               } else {
+                console.warn(`⚠️  No se puede enviar video: IP ${finalIpId} no tiene channelMessageId ni videoFileId`);
+              }
                 console.warn(`⚠️  No se puede reenviar video: IP ${finalIpId} (${ip.title}, Token ID: ${ip.tokenId || 'N/A'}) no tiene videoFileId ni channelMessageId`);
               }
             } catch (forwardError: any) {
