@@ -91,7 +91,9 @@ export async function loadRegisteredIPs(): Promise<RegisteredIP[]> {
 // Guardar IP registrado
 export async function saveRegisteredIP(ip: RegisteredIP): Promise<void> {
   try {
+    // CRÍTICO: Asegurar que el directorio existe ANTES de cualquier operación
     await ensureDataDir();
+    
     const ips = await loadRegisteredIPs();
     
     // CRÍTICO: Buscar duplicados por tokenId si está disponible (más preciso)
@@ -174,10 +176,13 @@ export async function saveRegisteredIP(ip: RegisteredIP): Promise<void> {
       console.warn('⚠️  No se pudo crear backup:', backupError);
     }
     
-    // 4. Escribir al archivo temporal primero
+    // 4. Asegurar que el directorio existe antes de escribir (por si acaso)
+    await ensureDataDir();
+    
+    // 5. Escribir al archivo temporal primero
     await fs.writeFile(tempFile, jsonContent, 'utf-8');
     
-    // 5. Reemplazar el archivo original con el temporal (operación atómica)
+    // 6. Reemplazar el archivo original con el temporal (operación atómica)
     await fs.rename(tempFile, REGISTRY_FILE);
     
     console.log(`✅ IP guardado en marketplace: ${ip.ipId}${ip.tokenId ? ` (Token ID: ${ip.tokenId})` : ''} - ${ip.title} (uploader: ${ip.uploader || 'N/A'})`);
