@@ -14,6 +14,7 @@ export interface PendingRoyalty {
   uploaderName?: string;
   channelMessageId?: number; // ID del mensaje en el canal para reenviar
   videoFileId?: string; // File ID del video para reenviar directamente
+  originalCaption?: string; // CRÍTICO: Caption original del video enviado (para reenviar después del pago)
   createdAt: string;
   expiresAt: string; // Fecha de expiración (ej: 24 horas después de resolver el puzzle)
   paid: boolean;
@@ -73,7 +74,8 @@ export async function createPendingRoyalty(
   uploaderName?: string,
   tokenId?: string,
   channelMessageId?: number,
-  videoFileId?: string
+  videoFileId?: string,
+  originalCaption?: string // CRÍTICO: Caption original del video enviado
 ): Promise<PendingRoyalty> {
   const royalties = await loadPendingRoyalties();
   
@@ -113,6 +115,7 @@ export async function createPendingRoyalty(
     uploaderName,
     channelMessageId,
     videoFileId,
+    originalCaption, // CRÍTICO: Guardar caption original para reenviar después del pago
     createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 horas
     paid: false,

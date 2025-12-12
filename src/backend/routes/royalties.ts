@@ -175,46 +175,99 @@ router.post('/verify-payment', async (req, res) => {
     // Marcar regalía como pagada
     await markRoyaltyAsPaid(royaltyId, txHash);
     
-    // Reenviar video sin protección
+    // Reenviar video sin protección usando el caption original
     let videoReSent = false;
     if (royalty && royalty.videoFileId && royalty.telegramUserId) {
       try {
         const { bot } = await import('../../bot/index');
-        const { getIPById } = await import('../services/ipRegistry');
-        const ip = await getIPById(royalty.ipId);
-        if (ip && ip.ipId) {
-          const explorerUrl = ip.tokenId 
-            ? `https://aeneid.storyscan.io/token/${ip.ipId}/instance/${ip.tokenId}`
-            : `https://aeneid.storyscan.io/token/${ip.ipId}`;
-          let captionParts = [
-            `🎬 ${ip.title || 'Video'}${ip.year ? ` (${ip.year})` : ''}`,
-            ``,
-            `✅ Registrado como IP en Story Protocol`,
-            `🔗 IP ID: ${ip.ipId}`,
-          ];
-          if (ip.tokenId) {
-            captionParts.push(`📦 Instancia: ${ip.tokenId}`);
+        
+        // CRÍTICO: Usar el caption original guardado en la regalía
+        // Reemplazar solo la parte de "protegido" con "regalía pagada"
+        let finalCaption = '';
+        
+        if (royalty.originalCaption) {
+          // Reemplazar la sección de protección con mensaje de regalía pagada
+          finalCaption = royalty.originalCaption
+            .replace(
+              /⚠️ Este video está protegido\. Debes pagar la regalía \(0\.1 IP\) para poder reenviarlo\.\n💳 Regalía pendiente: 0\.1 IP[\s\S]*?💳 Usa el comando \/profile en el bot para pagar tus regalías pendientes\./,
+              '✅ Regalía pagada - Ahora puedes reenviar este video libremente.'
+            )
+            .replace(
+              /👤 Dueño: [\w\.]+\.\.\.[\w\.]+\n💼 Paga con Dynamic usando esta address\n/,
+              ''
+            )
+            .replace(
+              /💳 Regalía pendiente: 0\.1 IP\n/,
+              ''
+            )
+            .replace(
+              /⚠️ Este video está protegido\. Debes pagar la regalía \(0\.1 IP\) para poder reenviarlo\.\n/,
+              ''
+            )
+            .replace(
+              /💳 Usa el comando \/profile en el bot para pagar tus regalías pendientes\./,
+              '✅ Regalía pagada - Ahora puedes reenviar este video libremente.'
+            );
+          
+          // Si no se reemplazó nada, agregar el mensaje al final
+          if (finalCaption === royalty.originalCaption) {
+            finalCaption = royalty.originalCaption + '\n\n✅ Regalía pagada - Ahora puedes reenviar este video libremente.';
           }
-          captionParts.push(
-            `🔗 Ver en Explorer: ${explorerUrl}`,
-            `📤 Subido por: ${ip.uploaderName || (ip.uploader ? ip.uploader.replace('TelegramUser_', 'Usuario ') : 'Desconocido')}`,
-            ``,
-            `🎉 Felicidades haz resuelto el Puzzle puedes compartir este video y pagar tus regalías en : @firstframe_ipbot`,
-            ``,
-            `✅ Regalía pagada - Ahora puedes reenviar este video libremente.`
-          );
-          const fullCaption = captionParts.join('\n');
-          await bot.telegram.sendVideo(
-            royalty.telegramUserId,
-            royalty.videoFileId,
-            { 
-              caption: fullCaption,
-              // CRÍTICO: NO usar protect_content aquí - el usuario ya pagó, puede reenviar
+          
+          console.log(`✅ Usando caption original guardado en la regalía (${royalty.originalCaption.length} caracteres)`);
+        } else {
+          // Fallback: Construir caption desde el IP si no hay caption original
+          console.warn(`⚠️  No hay caption original guardado en la regalía, construyendo desde el IP`);
+          const { getIPById, getIPByTokenId } = await import('../services/ipRegistry');
+          let ip = null;
+          
+          // PRIORIDAD: Buscar por tokenId si está disponible
+          if (royalty.tokenId) {
+            ip = await getIPByTokenId(royalty.tokenId);
+          }
+          if (!ip) {
+            ip = await getIPById(royalty.ipId);
+          }
+          
+          if (ip && ip.ipId) {
+            const explorerUrl = ip.tokenId 
+              ? `https://aeneid.storyscan.io/token/${ip.ipId}/instance/${ip.tokenId}`
+              : `https://aeneid.storyscan.io/token/${ip.ipId}`;
+            let captionParts = [
+              `🎬 ${ip.title || 'Video'}${ip.year ? ` (${ip.year})` : ''}`,
+              ``,
+              `✅ Registrado como IP en Story Protocol`,
+              `🔗 IP ID: ${ip.ipId}`,
+            ];
+            if (ip.tokenId) {
+              captionParts.push(`📦 Instancia: ${ip.tokenId}`);
             }
-          );
-          videoReSent = true;
-          console.log(`✅ Video reenviado sin protección al usuario ${royalty.telegramUserId} después de verificar pago`);
+            captionParts.push(
+              `🔗 Ver en Explorer: ${explorerUrl}`,
+              `📤 Subido por: ${ip.uploaderName || (ip.uploader ? ip.uploader.replace('TelegramUser_', 'Usuario ') : 'Desconocido')}`,
+              ``,
+              `🎉 Felicidades haz resuelto el Puzzle puedes compartir este video y pagar tus regalías en : @firstframe_ipbot`,
+              ``,
+              `✅ Regalía pagada - Ahora puedes reenviar este video libremente.`
+            );
+            finalCaption = captionParts.join('\n');
+          } else {
+            console.error(`❌ No se pudo obtener IP para construir caption. IP ID: ${royalty.ipId}, Token ID: ${royalty.tokenId || 'N/A'}`);
+            finalCaption = `✅ Regalía pagada - Ahora puedes reenviar este video libremente.`;
+          }
         }
+        
+        await bot.telegram.sendVideo(
+          royalty.telegramUserId,
+          royalty.videoFileId,
+          { 
+            caption: finalCaption,
+            // CRÍTICO: NO usar protect_content aquí - el usuario ya pagó, puede reenviar
+          }
+        );
+        videoReSent = true;
+        console.log(`✅ Video reenviado sin protección al usuario ${royalty.telegramUserId} después de verificar pago`);
+        console.log(`   - Caption usado: ${finalCaption.substring(0, 100)}...`);
       } catch (videoError: any) {
         console.error('Error reenviando video sin protección:', videoError);
       }

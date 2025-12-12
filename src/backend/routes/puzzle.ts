@@ -521,7 +521,8 @@ router.post('/validate', async (req, res) => {
                   uploaderName, // Usar nombre del registry
                   ip.tokenId,
                   ip.channelMessageId,
-                  ip.videoFileId
+                  ip.videoFileId,
+                  fullCaption // CRÍTICO: Guardar caption original para reenviar después del pago
                 );
                 
                 royaltyId = royalty.id;
