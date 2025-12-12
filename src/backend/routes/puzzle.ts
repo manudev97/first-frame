@@ -380,69 +380,71 @@ router.post('/validate', async (req, res) => {
             
             console.log(`✅ Bot instance verificada y lista para enviar video`);
             
-            // 3. Reenviar video al usuario directamente usando videoFileId o channelMessageId
+            // 3. Construir caption completo ANTES de enviar el video (para guardarlo en la regalía)
+            // CRÍTICO: Usar tokenId del REQUEST si está disponible (más preciso que el del IP encontrado)
+            // Esto asegura que el caption tenga los datos correctos del puzzle resuelto
+            const correctTokenId = tokenId?.toString() || ip.tokenId;
+            
+            // Construir caption completo con toda la información CORRECTA
+            const explorerUrl = correctTokenId 
+              ? `https://aeneid.storyscan.io/token/${ip.ipId}/instance/${correctTokenId}`
+              : `https://aeneid.storyscan.io/token/${ip.ipId}`;
+            
+            // CRÍTICO: Obtener address del dueño para mostrar en el caption
+            // Intentar obtener desde Dynamic si está disponible, sino usar wallet determinístico
+            let ownerAddress = '';
+            try {
+              const uploaderMatch = ip.uploader?.match(/TelegramUser_(\d+)/);
+              if (uploaderMatch) {
+                const uploaderTelegramId = parseInt(uploaderMatch[1]);
+                
+                // TODO: Intentar obtener address desde Dynamic si el uploader tiene wallet conectada
+                // Por ahora, usar wallet determinístico como fallback
+                const { generateDeterministicAddress } = await import('../services/deterministicWalletService');
+                ownerAddress = generateDeterministicAddress(uploaderTelegramId);
+                console.log(`✅ Address del dueño obtenida: ${ownerAddress.substring(0, 8)}...${ownerAddress.substring(36)}`);
+              }
+            } catch (addressError) {
+              console.warn('No se pudo obtener address del dueño:', addressError);
+            }
+            
+            // CRÍTICO: Usar título del REQUEST si está disponible (más confiable)
+            const correctTitle = requestTitle || ip.title;
+            
+            let captionParts = [
+              `🎬 ${correctTitle}${ip.year ? ` (${ip.year})` : ''}`,
+              ``,
+              `✅ Registrado como IP en Story Protocol`,
+              `🔗 IP ID: ${ip.ipId}`,
+            ];
+            
+            if (correctTokenId) {
+              captionParts.push(`📦 Instancia: ${correctTokenId}`);
+            }
+            
+            captionParts.push(
+              `🔗 Ver en Explorer: ${explorerUrl}`,
+              `📤 Subido por: ${ip.uploaderName || (ip.uploader ? ip.uploader.replace('TelegramUser_', 'Usuario ') : 'Desconocido')}`,
+              ``,
+              `🎉 Felicidades haz resuelto el Puzzle puedes compartir este video y pagar tus regalías en : @firstframe_ipbot`,
+              ``,
+              `⚠️ Este video está protegido. Debes pagar la regalía (0.1 IP) para poder reenviarlo.`,
+              `💳 Regalía pendiente: 0.1 IP`,
+            );
+            
+            // CRÍTICO: Agregar address del dueño si está disponible
+            if (ownerAddress) {
+              captionParts.push(`👤 Dueño: ${ownerAddress.substring(0, 8)}...${ownerAddress.substring(36)}`);
+              captionParts.push(`💼 Paga con Dynamic usando esta address`);
+            }
+            
+            captionParts.push(`💳 Usa el comando /profile en el bot para pagar tus regalías pendientes.`);
+            
+            const fullCaption = captionParts.join('\n');
+            
+            // 4. Reenviar video al usuario directamente usando videoFileId
             // IMPORTANTE: Usar protect_content: true para desactivar reenvío hasta que se pague
             try {
-              // CRÍTICO: Usar tokenId del REQUEST si está disponible (más preciso que el del IP encontrado)
-              // Esto asegura que el caption tenga los datos correctos del puzzle resuelto
-              const correctTokenId = tokenId?.toString() || ip.tokenId;
-              
-              // Construir caption completo con toda la información CORRECTA
-              const explorerUrl = correctTokenId 
-                ? `https://aeneid.storyscan.io/token/${ip.ipId}/instance/${correctTokenId}`
-                : `https://aeneid.storyscan.io/token/${ip.ipId}`;
-              
-              // CRÍTICO: Obtener address del dueño para mostrar en el caption
-              // Intentar obtener desde Dynamic si está disponible, sino usar wallet determinístico
-              let ownerAddress = '';
-              try {
-                const uploaderMatch = ip.uploader?.match(/TelegramUser_(\d+)/);
-                if (uploaderMatch) {
-                  const uploaderTelegramId = parseInt(uploaderMatch[1]);
-                  
-                  // TODO: Intentar obtener address desde Dynamic si el uploader tiene wallet conectada
-                  // Por ahora, usar wallet determinístico como fallback
-                  const { generateDeterministicAddress } = await import('../services/deterministicWalletService');
-                  ownerAddress = generateDeterministicAddress(uploaderTelegramId);
-                  console.log(`✅ Address del dueño obtenida: ${ownerAddress.substring(0, 8)}...${ownerAddress.substring(36)}`);
-                }
-              } catch (addressError) {
-                console.warn('No se pudo obtener address del dueño:', addressError);
-              }
-              
-              // CRÍTICO: Usar título del REQUEST si está disponible (más confiable)
-              const correctTitle = requestTitle || ip.title;
-              
-              let captionParts = [
-                `🎬 ${correctTitle}${ip.year ? ` (${ip.year})` : ''}`,
-                ``,
-                `✅ Registrado como IP en Story Protocol`,
-                `🔗 IP ID: ${ip.ipId}`,
-              ];
-              
-              if (correctTokenId) {
-                captionParts.push(`📦 Instancia: ${correctTokenId}`);
-              }
-              
-              captionParts.push(
-                `🔗 Ver en Explorer: ${explorerUrl}`,
-                `📤 Subido por: ${ip.uploaderName || (ip.uploader ? ip.uploader.replace('TelegramUser_', 'Usuario ') : 'Desconocido')}`,
-                ``,
-                `🎉 Felicidades haz resuelto el Puzzle puedes compartir este video y pagar tus regalías en : @firstframe_ipbot`,
-                ``,
-                `⚠️ Este video está protegido. Debes pagar la regalía (0.1 IP) para poder reenviarlo.`,
-                `💳 Regalía pendiente: 0.1 IP`,
-              );
-              
-              // CRÍTICO: Agregar address del dueño si está disponible
-              if (ownerAddress) {
-                captionParts.push(`👤 Dueño: ${ownerAddress.substring(0, 8)}...${ownerAddress.substring(36)}`);
-                captionParts.push(`💼 Paga con Dynamic usando esta address`);
-              }
-              
-              captionParts.push(`💳 Usa el comando /profile en el bot para pagar tus regalías pendientes.`);
-              
-              const fullCaption = captionParts.join('\n');
               
               // CRÍTICO: Usar sendVideo con protect_content: true para enviar UNA SOLA VEZ sin opción de reenvío
               // Priorizar videoFileId si está disponible, sino intentar obtenerlo del canal
