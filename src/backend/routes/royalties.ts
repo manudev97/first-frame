@@ -99,8 +99,26 @@ router.get('/pay-info/:royaltyId', async (req, res) => {
     if (expiresAt < new Date()) {
       return res.status(400).json({ success: false, error: 'La regalía ha expirado', expired: true });
     }
-    const { getIPById } = await import('../services/ipRegistry');
-    const ip = await getIPById(royalty.ipId);
+    // CRÍTICO: Buscar el IP correcto usando tokenId si está disponible (más preciso que ipId)
+    const { getIPById, getIPByTokenId } = await import('../services/ipRegistry');
+    let ip: RegisteredIP | null = null;
+    
+    // PRIORIDAD 1: Buscar por tokenId de la regalía (más preciso - identifica la instancia correcta)
+    if (royalty.tokenId) {
+      ip = await getIPByTokenId(royalty.tokenId);
+      if (ip) {
+        console.log(`✅ IP encontrado por tokenId ${royalty.tokenId} para regalía ${royaltyId}: ${ip.title}`);
+      }
+    }
+    
+    // PRIORIDAD 2: Si no se encontró por tokenId, buscar por ipId
+    if (!ip) {
+      ip = await getIPById(royalty.ipId);
+      if (ip) {
+        console.log(`✅ IP encontrado por ipId ${royalty.ipId} para regalía ${royaltyId}: ${ip.title}`);
+      }
+    }
+    
     let uploaderWallet: string = '';
     if (ip && ip.uploader) {
       const uploaderTelegramIdMatch = ip.uploader.match(/TelegramUser_(\d+)/);
@@ -110,11 +128,13 @@ router.get('/pay-info/:royaltyId', async (req, res) => {
         // Por ahora, usar determinística como fallback hasta que tengamos Dynamic wallet del uploader
         const { generateDeterministicAddress } = await import('../services/deterministicWalletService');
         uploaderWallet = generateDeterministicAddress(uploaderTelegramId);
+        console.log(`✅ Address del dueño obtenida del IP correcto (tokenId: ${ip.tokenId || 'N/A'}): ${uploaderWallet.substring(0, 8)}...${uploaderWallet.substring(36)}`);
       }
     }
     if (!uploaderWallet && royalty) {
       const { generateDeterministicAddress } = await import('../services/deterministicWalletService');
       uploaderWallet = generateDeterministicAddress(royalty.uploaderTelegramId);
+      console.warn(`⚠️  No se encontró IP para regalía ${royaltyId}, usando address determinística del uploaderTelegramId`);
     }
     const { getRoyaltyTokenAddress } = await import('../services/tokenBalanceService');
     const tokenAddress = getRoyaltyTokenAddress();

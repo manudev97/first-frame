@@ -591,18 +591,80 @@ function Profile() {
                       {paymentInfo && paymentInfo.royaltyId === royalty.id ? (
                         <>
                           <div style={{ 
-                            padding: '0.75rem', 
+                            padding: '1rem', 
                             background: '#f0f0f0', 
                             borderRadius: '8px',
-                            fontSize: '0.85rem'
+                            fontSize: '0.9rem'
                           }}>
-                            <p><strong>Destinatario:</strong> {paymentInfo.recipientAddress}</p>
-                            <p><strong>Monto:</strong> {paymentInfo.amount} {paymentInfo.currency}</p>
-                            <p style={{ marginTop: '0.5rem', color: '#666' }}>
-                              1. Envía el pago usando tu wallet Dynamic<br/>
-                              2. Ingresa el TX Hash abajo<br/>
-                              3. Haz clic en "Verificar Pago"
+                            <p style={{ marginBottom: '0.75rem', fontWeight: 600 }}>
+                              <strong>🎬 Video:</strong> {royalty.videoTitle}
                             </p>
+                            <p style={{ marginBottom: '0.75rem' }}>
+                              <strong>💰 Monto:</strong> {paymentInfo.amount} {paymentInfo.currency}
+                            </p>
+                            <div style={{ marginBottom: '0.75rem' }}>
+                              <strong>📤 Dirección del destinatario:</strong>
+                              <div style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '0.5rem',
+                                marginTop: '0.5rem',
+                                padding: '0.75rem',
+                                background: 'white',
+                                borderRadius: '6px',
+                                border: '1px solid #ddd'
+                              }}>
+                                <code style={{ 
+                                  flex: 1, 
+                                  fontFamily: 'monospace', 
+                                  fontSize: '0.85rem',
+                                  wordBreak: 'break-all',
+                                  color: '#333',
+                                  lineHeight: '1.4'
+                                }}>
+                                  {paymentInfo.recipientAddress}
+                                </code>
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(paymentInfo.recipientAddress);
+                                    alert('✅ Dirección copiada al portapapeles');
+                                  }}
+                                  style={{
+                                    padding: '0.5rem 1rem',
+                                    background: '#4285F4',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    fontSize: '0.85rem',
+                                    fontWeight: 600,
+                                    whiteSpace: 'nowrap',
+                                    transition: 'background 0.2s'
+                                  }}
+                                  onMouseOver={(e) => e.currentTarget.style.background = '#357ae8'}
+                                  onMouseOut={(e) => e.currentTarget.style.background = '#4285F4'}
+                                  title="Copiar dirección"
+                                >
+                                  📋 Copiar
+                                </button>
+                              </div>
+                            </div>
+                            <div style={{ 
+                              marginTop: '0.75rem', 
+                              padding: '0.75rem',
+                              background: '#e3f2fd',
+                              borderRadius: '6px',
+                              fontSize: '0.85rem',
+                              color: '#1976d2'
+                            }}>
+                              <strong>📋 Pasos para pagar:</strong>
+                              <ol style={{ margin: '0.5rem 0 0 1.2rem', padding: 0 }}>
+                                <li style={{ marginBottom: '0.25rem' }}>Copia la dirección de arriba</li>
+                                <li style={{ marginBottom: '0.25rem' }}>Envía {paymentInfo.amount} {paymentInfo.currency} usando tu wallet Dynamic</li>
+                                <li style={{ marginBottom: '0.25rem' }}>Ingresa el TX Hash abajo</li>
+                                <li>Haz clic en "Verificar Pago"</li>
+                              </ol>
+                            </div>
                           </div>
                           <input
                             type="text"
