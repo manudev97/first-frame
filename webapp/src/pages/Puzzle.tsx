@@ -188,10 +188,12 @@ function Puzzle() {
       
       // IMPORTANTE: Solo mostrar notificación si el puzzle está realmente resuelto
       if (response.data.success && response.data.accessGranted) {
+        // CRÍTICO: Verificar si ya estaba completado (evitar mostrar alert duplicado)
+        const alreadyCompleted = response.data.alreadyCompleted;
+        
         // CRÍTICO: Establecer solved ANTES de mostrar el alert para prevenir llamadas duplicadas
         setSolved(true);
         setShowPreview(false);
-        setIsChecking(false); // Liberar el flag después de establecer solved
         
         // Guardar datos del IP derivado y canal para mostrar en la UI
         const derivativeIpIdValue = response.data.derivativeIpId;
@@ -227,10 +229,13 @@ function Puzzle() {
         
         successMessage += `\n⚠️ IMPORTANT: If you have pending royalties, you won't be able to solve more puzzles until you pay them.`;
         
-        // CRÍTICO: Solo mostrar alert si realmente se resolvió (no si ya estaba resuelto)
-        if (!solved) {
+        // CRÍTICO: Solo mostrar alert si NO estaba ya completado (evitar alert duplicado)
+        if (!alreadyCompleted) {
           alert(successMessage);
         }
+        
+        // CRÍTICO: Liberar el flag después de procesar la respuesta
+        setIsChecking(false);
       } else {
         // Feedback visual sin alert intrusivo - NO mostrar notificación si no está resuelto
         console.log('Solución incorrecta, continuar intentando...');
