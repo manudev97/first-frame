@@ -134,6 +134,8 @@ function Puzzle() {
     const urlParams = new URLSearchParams(window.location.search);
     const ipId = urlParams.get('ipId');
     const posterUrl = urlParams.get('poster');
+    const title = urlParams.get('title');
+    const tokenId = urlParams.get('tokenId'); // CRÍTICO: Obtener tokenId de los parámetros
     
     // Obtener telegramUserId
     const telegramUser = getTelegramUser();
@@ -148,12 +150,15 @@ function Puzzle() {
     // Esto es necesario para enviar el token derivado a la wallet correcta
     const userDynamicAddress = dynamicWallet.address;
     console.log(`🔍 Address de Dynamic del usuario: ${userDynamicAddress || 'No disponible'}`);
+    console.log(`🔍 Parámetros del puzzle:`, { ipId, tokenId, title, posterUrl });
     
     try {
       const response = await axios.post(`${API_URL}/puzzle/validate`, {
         puzzleId: puzzle.puzzleId,
         solution,
         ipId: ipId,
+        tokenId: tokenId, // CRÍTICO: Enviar tokenId para identificar el IP correcto
+        title: title, // CRÍTICO: Enviar título para búsqueda alternativa
         posterUrl: posterUrl,
         telegramUserId: telegramUserId, // Enviar telegramUserId al backend
         puzzleTimeSeconds: currentTime, // Enviar tiempo actual del puzzle

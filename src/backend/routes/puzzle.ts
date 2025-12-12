@@ -166,12 +166,51 @@ router.post('/validate', async (req, res) => {
       if (ipId && telegramUserId) {
         try {
           // 1. Obtener información del IP del registry
-          const { getIPById } = await import('../services/ipRegistry');
-          const ip = await getIPById(ipId);
+          // CRÍTICO: El ipId puede ser el contrato SPG NFT, necesitamos buscar por tokenId si está disponible
+          const { getIPById, loadRegisteredIPs } = await import('../services/ipRegistry');
+          let ip = await getIPById(ipId);
+          let correctIpId = ipId; // Variable para almacenar el IP ID correcto
+          
+          // CRÍTICO: Si no encontramos el IP por ipId, puede ser que el ipId sea el contrato
+          // Intentar buscar por tokenId si está disponible en los parámetros del request
+          if (!ip) {
+            console.warn(`⚠️  IP ${ipId} no encontrado directamente. Intentando buscar por tokenId...`);
+            const tokenId = req.body.tokenId; // TokenId puede venir en el request
+            if (tokenId) {
+              const allIPs = await loadRegisteredIPs();
+              ip = allIPs.find((i) => i.tokenId === tokenId.toString() || i.tokenId === tokenId) || null;
+              if (ip) {
+                console.log(`✅ IP encontrado por tokenId ${tokenId}: ${ip.title} (IP ID: ${ip.ipId})`);
+                // CRÍTICO: Actualizar el ipId correcto al del IP encontrado
+                correctIpId = ip.ipId;
+              }
+            }
+          }
+          
+          // CRÍTICO: Si aún no encontramos el IP, intentar buscar por título si está disponible
+          if (!ip && req.body.title) {
+            console.warn(`⚠️  IP no encontrado por ipId ni tokenId. Intentando buscar por título: "${req.body.title}"`);
+            const allIPs = await loadRegisteredIPs();
+            const matchingIPs = allIPs.filter((i) => 
+              i.title?.toLowerCase().includes(req.body.title.toLowerCase()) ||
+              req.body.title.toLowerCase().includes(i.title?.toLowerCase() || '')
+            );
+            if (matchingIPs.length > 0) {
+              // Priorizar IPs que tienen video
+              ip = matchingIPs.find((i) => i.videoFileId || i.channelMessageId) || matchingIPs[0];
+              if (ip) {
+                console.log(`✅ IP encontrado por título "${req.body.title}": ${ip.title} (IP ID: ${ip.ipId})`);
+                // CRÍTICO: Actualizar el ipId correcto al del IP encontrado
+                correctIpId = ip.ipId;
+              }
+            }
+          }
           
           console.log(`📊 IP obtenido del registry:`, ip ? {
             ipId: ip.ipId,
+            correctIpId: correctIpId,
             title: ip.title,
+            tokenId: ip.tokenId || 'N/A',
             hasVideoFileId: !!ip.videoFileId,
             hasChannelMessageId: !!ip.channelMessageId,
             uploader: ip.uploader,
@@ -180,8 +219,57 @@ router.post('/validate', async (req, res) => {
           } : 'null');
           
           if (!ip) {
-            console.error(`❌ ERROR CRÍTICO: IP ${ipId} no encontrado en el registry`);
+            console.error(`❌ ERROR CRÍTICO: IP no encontrado en el registry`);
+            console.error(`   - ipId buscado: ${req.body.ipId}`);
+            console.error(`   - tokenId buscado: ${req.body.tokenId || 'N/A'}`);
+            console.error(`   - título buscado: ${req.body.title || 'N/A'}`);
             console.error(`   Esto significa que el IP no fue guardado correctamente durante el registro`);
+            return res.json({
+              success: true,
+              message: '¡Puzzle completado correctamente!',
+              accessGranted: true,
+              videoForwarded: false,
+              royaltyCreated: false,
+              error: 'IP no encontrado en registry. El video no se pudo enviar.',
+            });
+          }
+          
+          // CRÍTICO: Usar el IP ID correcto para todas las operaciones posteriores
+          const finalIpId = correctIpId;
+          
+          // CRÍTICO: Si el IP no tiene videoFileId ni channelMessageId, intentar buscarlo en el canal
+          // usando el título del IP
+          if (ip && !ip.videoFileId && !ip.channelMessageId && ip.title) {
+            console.log(`⚠️  IP no tiene videoFileId ni channelMessageId. Intentando buscar en el canal por título: "${ip.title}"`);
+            try {
+              const { searchVideosInChannelByCaption } = await import('../services/channelMessageService');
+              const { bot } = await import('../../bot/index');
+              const channelId = process.env.TELEGRAM_CHANNEL_ID || process.env.TELEGRAM_CHANNEL_LINK;
+              
+              if (channelId && bot) {
+                const matchingVideos = await searchVideosInChannelByCaption(bot, channelId, ip.title);
+                if (matchingVideos.length > 0) {
+                  const matchingVideo = matchingVideos.find(v => v.ipId.toLowerCase() === ipId.toLowerCase()) || matchingVideos[0];
+                  if (matchingVideo.videoFileId) {
+                    ip.videoFileId = matchingVideo.videoFileId;
+                    console.log(`✅ VideoFileId encontrado en canal para "${ip.title}": ${matchingVideo.videoFileId.substring(0, 20)}...`);
+                  }
+                  if (matchingVideo.channelMessageId) {
+                    ip.channelMessageId = matchingVideo.channelMessageId;
+                    console.log(`✅ ChannelMessageId encontrado en canal para "${ip.title}": ${matchingVideo.channelMessageId}`);
+                  }
+                  
+                  // Guardar los datos encontrados en el registry
+                  if (ip.videoFileId || ip.channelMessageId) {
+                    const { saveRegisteredIP } = await import('../services/ipRegistry');
+                    await saveRegisteredIP(ip);
+                    console.log(`✅ IP actualizado con videoFileId y channelMessageId encontrados en el canal`);
+                  }
+                }
+              }
+            } catch (searchError: any) {
+              console.warn(`⚠️  No se pudo buscar video en canal por título:`, searchError.message);
+            }
           }
           
           // CRÍTICO: Verificar que el IP tenga videoFileId O channelMessageId
@@ -285,7 +373,7 @@ router.post('/validate', async (req, res) => {
                   );
                   
                   videoForwarded = true;
-                  console.log(`✅ Video enviado exitosamente al usuario ${telegramUserId} para IP ${ipId} usando videoFileId (con protección de contenido)`);
+                  console.log(`✅ Video enviado exitosamente al usuario ${telegramUserId} para IP ${finalIpId} (${ip.title}) usando videoFileId (con protección de contenido)`);
                 } catch (sendError: any) {
                   console.error(`❌ Error enviando video con videoFileId:`, sendError);
                   console.error(`   - Error code: ${sendError.response?.error_code || 'N/A'}`);
@@ -344,7 +432,7 @@ router.post('/validate', async (req, res) => {
                     );
                     
                     videoForwarded = true;
-                    console.log(`✅ Video y mensaje enviados exitosamente al usuario ${telegramUserId} para IP ${ipId} desde canal (messageId: ${ip.channelMessageId})`);
+                    console.log(`✅ Video y mensaje enviados exitosamente al usuario ${telegramUserId} para IP ${finalIpId} (${ip.title}) desde canal (messageId: ${ip.channelMessageId})`);
                   } catch (forwardError: any) {
                     console.error(`❌ Error reenviando desde canal:`, forwardError);
                     console.error(`   Detalles del error:`, {
@@ -393,6 +481,7 @@ router.post('/validate', async (req, res) => {
             }
             
             // 4. Crear regalía pendiente (SIEMPRE después de enviar el video)
+            // CRÍTICO: Si el IP no tiene uploader, no podemos crear la regalía
             if (ip.uploader) {
               try {
                 const { createPendingRoyalty } = await import('../services/royaltyService');
@@ -409,14 +498,14 @@ router.post('/validate', async (req, res) => {
                 const uploaderName = ip.uploaderName;
                 
                 console.log(`💰 Creando regalía pendiente de 0.1 IP para usuario ${telegramUserId}`);
-                console.log(`   - IP: ${ipId} (${ip.title})`);
+                console.log(`   - IP: ${finalIpId} (${ip.title})`);
                 console.log(`   - Uploader: ${uploaderTelegramId} (${uploaderName || 'Sin nombre'})`);
                 console.log(`   - VideoFileId: ${ip.videoFileId || 'N/A'}`);
                 console.log(`   - ChannelMessageId: ${ip.channelMessageId || 'N/A'}`);
                 
                 const royalty = await createPendingRoyalty(
                   telegramUserId,
-                  ipId,
+                  finalIpId, // CRÍTICO: Usar el IP ID correcto, no el del contrato
                   ip.title || 'Video sin título',
                   '0.1', // Monto fijo de regalía (0.1 IP)
                   uploaderTelegramId,
@@ -441,7 +530,11 @@ router.post('/validate', async (req, res) => {
                 // No fallar el puzzle si falla la creación de regalía, pero loguear el error
               }
             } else {
-              console.warn(`⚠️  No se puede crear regalía: IP ${ipId} no tiene uploader`);
+              console.error(`❌ ERROR CRÍTICO: No se puede crear regalía: IP ${ipId} no tiene uploader`);
+              console.error(`   - IP Title: ${ip.title}`);
+              console.error(`   - IP Uploader: ${ip.uploader || 'undefined'}`);
+              console.error(`   - IP UploaderName: ${ip.uploaderName || 'undefined'}`);
+              console.error(`   💡 El IP debe tener un uploader para poder crear regalías. Verifica que el IP se registró correctamente con el uploader.`);
             }
           } else {
             console.warn(`⚠️  No se puede enviar video: IP ${ipId} no tiene videoFileId ni channelMessageId`);

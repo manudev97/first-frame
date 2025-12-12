@@ -269,7 +269,7 @@ router.post('/forward-to-channel', async (req, res) => {
       }
     }
 
-            // IMPORTANTE: Guardar channelMessageId, videoFileId y uploaderName en el registry para poder reenviar después
+            // IMPORTANTE: Guardar channelMessageId, videoFileId, uploaderName y uploader en el registry para poder reenviar después
             if (channelMessageId && videoFileId) {
               try {
                 const { getIPById, saveRegisteredIP } = await import('../services/ipRegistry');
@@ -278,8 +278,13 @@ router.post('/forward-to-channel', async (req, res) => {
                   ip.channelMessageId = channelMessageId;
                   ip.videoFileId = videoFileId;
                   ip.uploaderName = uploaderName; // Guardar nombre del uploader
+                  // CRÍTICO: Si el uploader no está presente, guardarlo ahora
+                  if (!ip.uploader && uploaderTelegramId) {
+                    ip.uploader = `TelegramUser_${uploaderTelegramId}`;
+                    console.log(`✅ Uploader guardado para IP ${ipId}: ${ip.uploader}`);
+                  }
                   await saveRegisteredIP(ip);
-                  console.log(`✅ Channel message ID, video file ID y uploaderName guardados para IP ${ipId}`);
+                  console.log(`✅ Channel message ID, video file ID, uploaderName y uploader guardados para IP ${ipId}`);
                   
                   // CRÍTICO: Limpiar caché del marketplace para que el IP aparezca como disponible inmediatamente
                   try {

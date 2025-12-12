@@ -177,7 +177,7 @@ function Marketplace() {
           {(activeTab === 'disponible' ? disponible : noDisponible).map((item) => (
             <Link
               key={item.ipId}
-              to={`/puzzle?ipId=${item.ipId}&poster=${encodeURIComponent(item.posterUrl || '')}&title=${encodeURIComponent(item.title)}&year=${item.year || ''}`}
+              to={`/puzzle?ipId=${item.ipId}&poster=${encodeURIComponent(item.posterUrl || '')}&title=${encodeURIComponent(item.title)}&year=${item.year || ''}${item.tokenId ? `&tokenId=${item.tokenId}` : ''}`}
               className="marketplace-item"
             >
               {item.posterUrl && item.posterUrl.trim() !== '' ? (
