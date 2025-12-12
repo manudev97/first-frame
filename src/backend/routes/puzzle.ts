@@ -168,7 +168,7 @@ router.post('/validate', async (req, res) => {
       
       // CRÍTICO: Ejecutar lógica de envío del video SIEMPRE que el puzzle sea válido
       // No requiere que ipId y telegramUserId estén presentes (pueden ser undefined)
-      try {
+      if (ipId && telegramUserId) {
         try {
           // 1. Obtener información del IP del registry
           // CRÍTICO: PRIORIZAR búsqueda por tokenId si está disponible (más preciso que ipId)
