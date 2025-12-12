@@ -183,12 +183,8 @@ router.post('/validate', async (req, res) => {
           
           if (tokenId) {
             console.log(`🔍 Buscando IP por tokenId: ${tokenId} (PRIORIDAD ALTA)`);
-            const allIPs = await loadRegisteredIPs();
-            ip = allIPs.find((i) => 
-              i.tokenId === tokenId.toString() || 
-              i.tokenId === tokenId ||
-              (i.tokenId && i.tokenId.toString() === tokenId.toString())
-            ) || null;
+            const { getIPByTokenId } = await import('../services/ipRegistry');
+            ip = await getIPByTokenId(tokenId.toString());
             if (ip) {
               console.log(`✅ IP encontrado por tokenId ${tokenId}: ${ip.title} (IP ID: ${ip.ipId}, Token ID: ${ip.tokenId})`);
               // CRÍTICO: Actualizar el ipId correcto al del IP encontrado

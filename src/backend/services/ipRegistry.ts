@@ -22,6 +22,9 @@ export interface RegisteredIP {
 
 const REGISTRY_FILE = path.join(process.cwd(), 'data', 'ip-registry.json');
 
+// Lock para evitar escrituras concurrentes
+let writeLock: Promise<void> = Promise.resolve();
+
 // Asegurar que el directorio existe
 async function ensureDataDir() {
   const dataDir = path.dirname(REGISTRY_FILE);
@@ -29,6 +32,8 @@ async function ensureDataDir() {
     await fs.access(dataDir);
   } catch {
     await fs.mkdir(dataDir, { recursive: true });
+    // Verificar nuevamente que se creó correctamente
+    await fs.access(dataDir);
   }
 }
 
@@ -90,6 +95,15 @@ export async function loadRegisteredIPs(): Promise<RegisteredIP[]> {
 
 // Guardar IP registrado
 export async function saveRegisteredIP(ip: RegisteredIP): Promise<void> {
+  // CRÍTICO: Esperar a que cualquier escritura anterior termine (lock)
+  await writeLock;
+  
+  // Crear una nueva promesa de lock para esta escritura
+  let resolveLock: () => void;
+  writeLock = new Promise((resolve) => {
+    resolveLock = resolve;
+  });
+  
   try {
     // CRÍTICO: Asegurar que el directorio existe ANTES de cualquier operación
     await ensureDataDir();
@@ -190,19 +204,34 @@ export async function saveRegisteredIP(ip: RegisteredIP): Promise<void> {
       console.warn('⚠️  No se pudo crear backup:', backupError);
     }
     
-    // 6. Escribir al archivo temporal primero
+    // 6. Asegurar que el directorio existe una vez más antes de escribir (por si acaso)
+    await ensureDataDir();
+    
+    // 7. Escribir al archivo temporal primero
     await fs.writeFile(tempFile, jsonContent, 'utf-8');
     
-    // 7. Reemplazar el archivo original con el temporal (operación atómica)
+    // 8. Verificar que el archivo temporal se escribió correctamente
+    try {
+      await fs.access(tempFile);
+    } catch {
+      throw new Error('No se pudo escribir el archivo temporal');
+    }
+    
+    // 9. Reemplazar el archivo original con el temporal (operación atómica)
     await fs.rename(tempFile, REGISTRY_FILE);
     
     console.log(`✅ IP guardado en marketplace: ${ip.ipId}${ip.tokenId ? ` (Token ID: ${ip.tokenId})` : ''} - ${ip.title} (uploader: ${ip.uploader || 'N/A'})`);
+    
+    // CRÍTICO: Liberar el lock después de escribir exitosamente
+    resolveLock!();
   } catch (error) {
     console.error('❌ Error guardando IP registrado:', error);
     // Limpiar archivo temporal si existe
     try {
       await fs.unlink(REGISTRY_FILE + '.tmp').catch(() => {});
     } catch {}
+    // CRÍTICO: Liberar el lock incluso si hay error
+    resolveLock!();
     throw error;
   }
 }
@@ -225,6 +254,16 @@ export async function searchIPs(query: string): Promise<RegisteredIP[]> {
 export async function getIPById(ipId: string): Promise<RegisteredIP | null> {
   const ips = await loadRegisteredIPs();
   return ips.find((ip) => ip.ipId.toLowerCase() === ipId.toLowerCase()) || null;
+}
+
+// Obtener IP por tokenId (más preciso que por ipId)
+export async function getIPByTokenId(tokenId: string): Promise<RegisteredIP | null> {
+  const ips = await loadRegisteredIPs();
+  return ips.find((ip) => 
+    ip.tokenId === tokenId || 
+    ip.tokenId === tokenId.toString() ||
+    (ip.tokenId && ip.tokenId.toString() === tokenId.toString())
+  ) || null;
 }
 
 // Obtener IPs registrados por un usuario específico
