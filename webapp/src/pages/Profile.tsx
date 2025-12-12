@@ -295,6 +295,10 @@ function Profile() {
   // Dynamic Wallet maneja la conexión/desconexión automáticamente
   // No necesitamos estas funciones, pero las mantenemos para compatibilidad
 
+  const [paymentInfo, setPaymentInfo] = useState<any>(null);
+  const [txHashInput, setTxHashInput] = useState<string>('');
+  const [verifyingPayment, setVerifyingPayment] = useState(false);
+
   const handlePayRoyalty = async (royaltyId: string) => {
     if (!wallet || !wallet.connected || !wallet.address) {
       alert('❌ Primero debes conectar tu wallet usando el botón de Dynamic Widget');
@@ -304,94 +308,87 @@ function Profile() {
     try {
       setLoading(true);
       
-      // Obtener la regalía para mostrar información
-      const royalty = pendingRoyalties.find(r => r.id === royaltyId);
-      const royaltyAmount = royalty?.amount || '0.1';
+      // Obtener información de pago desde el backend
+      const payInfoResponse = await axios.get(`${API_URL}/royalties/pay-info/${royaltyId}`);
       
-      // Obtener wallet del uploader desde la regalía
-      // IMPORTANTE: El backend debe obtener la dirección de Dynamic si está enlazada
-      // Por ahora, usamos la determinística como fallback
-      const { generateDeterministicWallet } = await import('../services/walletService');
-      const uploaderWallet = royalty?.uploaderTelegramId 
-        ? await generateDeterministicWallet(royalty.uploaderTelegramId)
-        : null;
-      
-      if (!uploaderWallet) {
-        alert('❌ No se pudo obtener la dirección del destinatario');
-        return;
+      if (payInfoResponse.data.success) {
+        setPaymentInfo({
+          ...payInfoResponse.data.paymentInfo,
+          royalty: payInfoResponse.data.royalty,
+          royaltyId: royaltyId,
+        });
+        // Mostrar instrucciones al usuario
+        const info = payInfoResponse.data.paymentInfo;
+        const royalty = payInfoResponse.data.royalty;
+        alert(
+          `💳 Información de Pago\n\n` +
+          `📤 Destinatario: ${info.recipientAddress}\n` +
+          `💰 Monto: ${info.amount} ${info.currency}\n` +
+          `🎬 Video: ${royalty.videoTitle}\n\n` +
+          `1. Usa tu wallet Dynamic para enviar ${info.amount} ${info.currency} a la dirección de arriba\n` +
+          `2. Copia el TX Hash de la transacción\n` +
+          `3. Pega el TX Hash en el campo de abajo y haz clic en "Verificar Pago"`
+        );
+      } else {
+        throw new Error(payInfoResponse.data.error || 'No se pudo obtener información de pago');
       }
+    } catch (error: any) {
+      console.error('Error obteniendo información de pago:', error);
+      const errorMsg = error.response?.data?.error || error.message || 'No se pudo obtener información de pago';
+      alert('❌ Error: ' + errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyPayment = async () => {
+    if (!paymentInfo || !txHashInput.trim()) {
+      alert('❌ Por favor ingresa el TX Hash de la transacción');
+      return;
+    }
+
+    if (!wallet || !wallet.address) {
+      alert('❌ No hay wallet conectada');
+      return;
+    }
+
+    try {
+      setVerifyingPayment(true);
       
-      // Obtener telegramUserId del usuario actual
-      const telegramUser = getTelegramUser();
-      const telegramUserId = telegramUser?.id;
-      
-      if (!telegramUserId) {
-        alert('❌ No se pudo obtener tu ID de Telegram. Por favor, recarga la página.');
-        return;
-      }
-      
-      // IMPORTANTE: Usar la dirección de Dynamic del usuario actual (no determinística)
-      if (!wallet.address) {
-        alert('❌ No hay wallet conectada. Por favor, conecta tu wallet de Dynamic.');
-        return;
-      }
-      
-      // Pagar regalía usando Story Protocol SDK (payRoyaltyOnBehalf)
-      console.log('💰 Pagando regalía usando Story Protocol...');
-      console.log('💰 Usando dirección de Dynamic:', wallet.address);
-      
-      const paymentResponse = await axios.post(`${API_URL}/royalties/pay`, {
-        royaltyId,
-        ownerAddress: wallet.address, // Dirección de Dynamic (asociada al email)
-        destinationAddress: uploaderWallet,
-        payerTelegramUserId: telegramUserId,
+      const verifyResponse = await axios.post(`${API_URL}/royalties/verify-payment`, {
+        royaltyId: paymentInfo.royaltyId,
+        txHash: txHashInput.trim(),
+        payerWalletAddress: wallet.address,
       });
 
-      if (paymentResponse.data.success) {
-        const paymentData = paymentResponse.data.payment;
-        const balances = paymentResponse.data.balances;
-        const txHash = paymentResponse.data.txHash;
-        
-        let successMessage = `✅ Regalía pagada exitosamente!\n\n`;
-        successMessage += `💰 Monto: ${royaltyAmount} IP\n`;
-        successMessage += `📤 Destinatario: ${paymentResponse.data.royalty.uploaderName || 'Creador original'}\n`;
-        
-        if (txHash) {
-          successMessage += `🔗 TX Hash: ${txHash}\n`;
-          successMessage += `\n📊 Ver en explorador:\n`;
-          successMessage += `https://aeneid.storyscan.io/tx/${txHash}\n`;
-        }
-        
-        if (balances) {
-          successMessage += `\n📊 Balances:\n`;
-          successMessage += `Tu balance: ${parseFloat(balances.payer.before).toFixed(4)} IP → ${parseFloat(balances.payer.after).toFixed(4)} IP\n`;
-          successMessage += `Destinatario: ${parseFloat(balances.uploader.before).toFixed(4)} IP → ${parseFloat(balances.uploader.after).toFixed(4)} IP\n`;
-        }
-        
-        alert(successMessage);
+      if (verifyResponse.data.success) {
+        alert(
+          `✅ Pago Verificado Exitosamente!\n\n` +
+          `🔗 TX Hash: ${txHashInput.trim()}\n` +
+          `📊 Ver en explorador:\n` +
+          `https://aeneid.storyscan.io/tx/${txHashInput.trim()}\n\n` +
+          (verifyResponse.data.videoReSent 
+            ? `✅ El video ha sido reenviado sin protección. Ahora puedes reenviarlo libremente.`
+            : `⚠️ El video no se pudo reenviar automáticamente.`)
+        );
+
+        // Limpiar estado
+        setPaymentInfo(null);
+        setTxHashInput('');
 
         // Recargar regalías pendientes y estadísticas
         await loadPendingRoyalties();
         await loadUserStats();
         await loadStoryBalance(wallet.address);
       } else {
-        throw new Error(paymentResponse.data.error || 'No se pudo procesar el pago');
+        throw new Error(verifyResponse.data.error || 'No se pudo verificar el pago');
       }
     } catch (error: any) {
-      console.error('Error pagando regalía:', error);
-      const errorMsg = error.response?.data?.error || error.message || 'No se pudo pagar la regalía';
-      const errorDetails = error.response?.data;
-      
-      let alertMessage = '❌ Error: ' + errorMsg;
-      if (errorDetails?.message) {
-        alertMessage += '\n\n' + errorDetails.message;
-      }
-      if (errorDetails?.faucetUrl) {
-        alertMessage += `\n\n💧 Obtén fondos del faucet: ${errorDetails.faucetUrl}`;
-      }
-      alert(alertMessage);
+      console.error('Error verificando pago:', error);
+      const errorMsg = error.response?.data?.error || error.message || 'No se pudo verificar el pago';
+      alert('❌ Error: ' + errorMsg);
     } finally {
-      setLoading(false);
+      setVerifyingPayment(false);
     }
   };
 
@@ -590,13 +587,69 @@ function Profile() {
                         </p>
                       )}
                     </div>
-                    <button
-                      className="btn-pay-royalty"
-                      onClick={() => handlePayRoyalty(royalty.id)}
-                      disabled={loading || isExpired}
-                    >
-                      {loading ? 'Procesando...' : `💳 Pagar ${royalty.amount} IP`}
-                    </button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {paymentInfo && paymentInfo.royaltyId === royalty.id ? (
+                        <>
+                          <div style={{ 
+                            padding: '0.75rem', 
+                            background: '#f0f0f0', 
+                            borderRadius: '8px',
+                            fontSize: '0.85rem'
+                          }}>
+                            <p><strong>Destinatario:</strong> {paymentInfo.recipientAddress}</p>
+                            <p><strong>Monto:</strong> {paymentInfo.amount} {paymentInfo.currency}</p>
+                            <p style={{ marginTop: '0.5rem', color: '#666' }}>
+                              1. Envía el pago usando tu wallet Dynamic<br/>
+                              2. Ingresa el TX Hash abajo<br/>
+                              3. Haz clic en "Verificar Pago"
+                            </p>
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="Pega el TX Hash aquí (0x...)"
+                            value={txHashInput}
+                            onChange={(e) => setTxHashInput(e.target.value)}
+                            style={{
+                              padding: '0.5rem',
+                              borderRadius: '8px',
+                              border: '1px solid #ddd',
+                              fontSize: '0.85rem',
+                            }}
+                          />
+                          <button
+                            className="btn-pay-royalty"
+                            onClick={handleVerifyPayment}
+                            disabled={verifyingPayment || !txHashInput.trim()}
+                          >
+                            {verifyingPayment ? 'Verificando...' : '✅ Verificar Pago'}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setPaymentInfo(null);
+                              setTxHashInput('');
+                            }}
+                            style={{
+                              padding: '0.5rem',
+                              background: 'transparent',
+                              border: '1px solid #ddd',
+                              borderRadius: '8px',
+                              cursor: 'pointer',
+                              fontSize: '0.85rem',
+                            }}
+                          >
+                            Cancelar
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          className="btn-pay-royalty"
+                          onClick={() => handlePayRoyalty(royalty.id)}
+                          disabled={loading || isExpired}
+                        >
+                          {loading ? 'Procesando...' : `💳 Pagar ${royalty.amount} IP`}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
