@@ -67,7 +67,7 @@ export function DynamicWidgetWrapper() {
         alignItems: 'center',
         justifyContent: 'center',
       }}>
-        Cargando wallet...
+        Loading wallet...
       </div>
     );
   }

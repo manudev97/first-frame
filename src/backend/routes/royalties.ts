@@ -88,7 +88,7 @@ router.get('/pay-info/:royaltyId', async (req, res) => {
   try {
     const { royaltyId } = req.params;
     if (!royaltyId) {
-      return res.status(400).json({ success: false, error: 'royaltyId es requerido' });
+      return res.status(400).json({ success: false, error: 'royaltyId is required' });
     }
     const allRoyalties = await loadPendingRoyalties();
     const royalty = allRoyalties.find((r) => r.id === royaltyId && !r.paid);
@@ -97,7 +97,7 @@ router.get('/pay-info/:royaltyId', async (req, res) => {
     }
     const expiresAt = new Date(royalty.expiresAt);
     if (expiresAt < new Date()) {
-      return res.status(400).json({ success: false, error: 'La regalía ha expirado', expired: true });
+      return res.status(400).json({ success: false, error: 'The royalty has expired', expired: true });
     }
     // CRÍTICO: Buscar el IP correcto usando tokenId si está disponible (más preciso que ipId)
     const { getIPById, getIPByTokenId } = await import('../services/ipRegistry');
@@ -167,7 +167,7 @@ router.post('/verify-payment', async (req, res) => {
   try {
     const { royaltyId, txHash, payerWalletAddress } = req.body;
     if (!royaltyId || !txHash || !payerWalletAddress) {
-      return res.status(400).json({ success: false, error: 'royaltyId, txHash y payerWalletAddress son requeridos' });
+      return res.status(400).json({ success: false, error: 'royaltyId, txHash and payerWalletAddress are required' });
     }
     const allRoyalties = await loadPendingRoyalties();
     const royalty = allRoyalties.find((r) => r.id === royaltyId && !r.paid);
@@ -185,12 +185,12 @@ router.post('/verify-payment', async (req, res) => {
       });
       const receipt = await publicClient.getTransactionReceipt({ hash: txHash as `0x${string}` });
       if (!receipt || receipt.status !== 'success') {
-        return res.status(400).json({ success: false, error: 'La transacción no existe o falló' });
+        return res.status(400).json({ success: false, error: 'The transaction does not exist or failed' });
       }
       console.log(`✅ Transacción verificada: ${txHash} en bloque ${receipt.blockNumber}`);
     } catch (txError: any) {
       console.error('Error verificando transacción:', txError);
-      return res.status(400).json({ success: false, error: 'No se pudo verificar la transacción: ' + txError.message });
+      return res.status(400).json({ success: false, error: 'Could not verify transaction: ' + txError.message });
     }
     
     // Marcar regalía como pagada
@@ -210,29 +210,29 @@ router.post('/verify-payment', async (req, res) => {
           // Reemplazar la sección de protección con mensaje de regalía pagada
           finalCaption = royalty.originalCaption
             .replace(
-              /⚠️ Este video está protegido\. Debes pagar la regalía \(0\.1 IP\) para poder reenviarlo\.\n💳 Regalía pendiente: 0\.1 IP[\s\S]*?💳 Usa el comando \/profile en el bot para pagar tus regalías pendientes\./,
-              '✅ Regalía pagada - Ahora puedes reenviar este video libremente.'
+              /⚠️ This video is protected\. You must pay the royalty \(0\.1 IP\) to forward it\.\n💳 Pending royalty: 0\.1 IP[\s\S]*?💳 Use the \/profile command in the bot to pay your pending royalties\./,
+              '✅ Royalty paid - You can now forward this video freely.'
             )
             .replace(
-              /👤 Dueño: [\w\.]+\.\.\.[\w\.]+\n💼 Paga con Dynamic usando esta address\n/,
+              /👤 Owner: [\w\.]+\.\.\.[\w\.]+\n💼 Pay with Dynamic using this address\n/,
               ''
             )
             .replace(
-              /💳 Regalía pendiente: 0\.1 IP\n/,
+              /💳 Pending royalty: 0\.1 IP\n/,
               ''
             )
             .replace(
-              /⚠️ Este video está protegido\. Debes pagar la regalía \(0\.1 IP\) para poder reenviarlo\.\n/,
+              /⚠️ This video is protected\. You must pay the royalty \(0\.1 IP\) to forward it\.\n/,
               ''
             )
             .replace(
-              /💳 Usa el comando \/profile en el bot para pagar tus regalías pendientes\./,
-              '✅ Regalía pagada - Ahora puedes reenviar este video libremente.'
+              /💳 Use the \/profile command in the bot to pay your pending royalties\./,
+              '✅ Royalty paid - You can now forward this video freely.'
             );
           
           // Si no se reemplazó nada, agregar el mensaje al final
           if (finalCaption === royalty.originalCaption) {
-            finalCaption = royalty.originalCaption + '\n\n✅ Regalía pagada - Ahora puedes reenviar este video libremente.';
+            finalCaption = royalty.originalCaption + '\n\n✅ Royalty paid - You can now forward this video freely.';
           }
           
           console.log(`✅ Usando caption original guardado en la regalía (${royalty.originalCaption.length} caracteres)`);
@@ -257,19 +257,19 @@ router.post('/verify-payment', async (req, res) => {
             let captionParts = [
               `🎬 ${ip.title || 'Video'}${ip.year ? ` (${ip.year})` : ''}`,
               ``,
-              `✅ Registrado como IP en Story Protocol`,
+              `✅ Registered as IP on Story Protocol`,
               `🔗 IP ID: ${ip.ipId}`,
             ];
             if (ip.tokenId) {
-              captionParts.push(`📦 Instancia: ${ip.tokenId}`);
+              captionParts.push(`📦 Instance: ${ip.tokenId}`);
             }
             captionParts.push(
-              `🔗 Ver en Explorer: ${explorerUrl}`,
-              `📤 Subido por: ${ip.uploaderName || (ip.uploader ? ip.uploader.replace('TelegramUser_', 'Usuario ') : 'Desconocido')}`,
+              `🔗 View in Explorer: ${explorerUrl}`,
+              `📤 Uploaded by: ${ip.uploaderName || (ip.uploader ? ip.uploader.replace('TelegramUser_', 'User ') : 'Unknown')}`,
               ``,
-              `🎉 Felicidades haz resuelto el Puzzle puedes compartir este video y pagar tus regalías en : @firstframe_ipbot`,
+              `🎉 Congratulations! You solved the puzzle. You can share this video and pay your royalties at: @firstframe_ipbot`,
               ``,
-              `✅ Regalía pagada - Ahora puedes reenviar este video libremente.`
+              `✅ Royalty paid - You can now forward this video freely.`
             );
             finalCaption = captionParts.join('\n');
           } else {

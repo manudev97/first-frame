@@ -38,19 +38,19 @@ function Report() {
   if (success) {
     return (
       <div className="report-success">
-        <h2>✅ Disputa Creada</h2>
-        <p>Tu reporte ha sido enviado y será revisado por los árbitros.</p>
+        <h2>✅ Dispute Created</h2>
+        <p>Your report has been sent and will be reviewed by arbitrators.</p>
       </div>
     );
   }
 
   return (
     <div className="report">
-      <Navigation title="Reportar Infracción" />
+      <Navigation title="Report Infringement" />
       
       <form onSubmit={handleSubmit} className="report-form">
         <div className="form-group">
-          <label>IP ID del Infractor</label>
+          <label>Infringer IP ID</label>
           <input
             type="text"
             value={targetIpId}
@@ -61,33 +61,33 @@ function Report() {
         </div>
 
         <div className="form-group">
-          <label>Razón de la Disputa</label>
+          <label>Dispute Reason</label>
           <select
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             required
           >
-            <option value="">Selecciona una razón</option>
-            <option value="IMPROPER_USAGE">Uso Impropio</option>
-            <option value="IMPROPER_PAYMENT">Pago Impropio</option>
-            <option value="CONTENT_STANDARD_VIOLATION">Violación de Estándares</option>
-            <option value="PLAGIARISM">Plagio</option>
+            <option value="">Select a reason</option>
+            <option value="IMPROPER_USAGE">Improper Usage</option>
+            <option value="IMPROPER_PAYMENT">Improper Payment</option>
+            <option value="CONTENT_STANDARD_VIOLATION">Content Standard Violation</option>
+            <option value="PLAGIARISM">Plagiarism</option>
           </select>
         </div>
 
         <div className="form-group">
-          <label>Evidencia (URL o descripción)</label>
+          <label>Evidence (URL or description)</label>
           <textarea
             value={evidence}
             onChange={(e) => setEvidence(e.target.value)}
-            placeholder="Proporciona evidencia de la infracción..."
+            placeholder="Provide evidence of the infringement..."
             rows={4}
             required
           />
         </div>
 
         <button type="submit" disabled={loading} className="btn-report">
-          {loading ? 'Enviando...' : '📝 Enviar Reporte'}
+          {loading ? 'Sending...' : '📝 Send Report'}
         </button>
       </form>
     </div>

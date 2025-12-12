@@ -106,7 +106,7 @@ function Marketplace() {
       }
     } catch (error: any) {
       console.error('Error buscando:', error);
-      alert('Error al buscar: ' + (error.response?.data?.error || error.message));
+      alert('Error searching: ' + (error.response?.data?.error || error.message));
     } finally {
       setLoading(false);
     }
@@ -126,7 +126,7 @@ function Marketplace() {
           className="search-input"
         />
         <button onClick={handleSearch} className="btn-primary">
-          🔍 Buscar
+          🔍 Search
         </button>
       </div>
 
@@ -145,7 +145,7 @@ function Marketplace() {
             fontWeight: activeTab === 'disponible' ? 'bold' : 'normal',
           }}
         >
-          ✅ Contenido Disponible ({disponible.length})
+          ✅ Available Content ({disponible.length})
         </button>
         <button
           className={`tab-button ${activeTab === 'noDisponible' ? 'active' : ''}`}
@@ -160,17 +160,17 @@ function Marketplace() {
             fontWeight: activeTab === 'noDisponible' ? 'bold' : 'normal',
           }}
         >
-          ⏳ No Disponible ({noDisponible.length})
+          ⏳ Not Available ({noDisponible.length})
         </button>
       </div>
 
       {loading ? (
-        <div className="loading">Cargando...</div>
+        <div className="loading">Loading...</div>
       ) : (activeTab === 'disponible' ? disponible : noDisponible).length === 0 ? (
         <div className="empty-state">
-          <p>📦 No hay {activeTab === 'disponible' ? 'contenido disponible' : 'contenido no disponible'} aún</p>
+          <p>📦 No {activeTab === 'disponible' ? 'available content' : 'unavailable content'} yet</p>
           {activeTab === 'noDisponible' && (
-            <p>Estos IPs están registrados pero aún no tienen video en el canal</p>
+            <p>These IPs are registered but don't have a video in the channel yet</p>
           )}
         </div>
       ) : (
@@ -197,7 +197,7 @@ function Marketplace() {
                 )}
                 <div className="item-footer">
                   <span className="item-id">{item.ipId.substring(0, 10)}...</span>
-                  <button className="btn-play">🧩 Jugar Puzzle</button>
+                  <button className="btn-play">🧩 Play Puzzle</button>
                 </div>
               </div>
             </Link>

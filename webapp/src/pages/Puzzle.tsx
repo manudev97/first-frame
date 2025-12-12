@@ -73,7 +73,7 @@ function Puzzle() {
       const ipId = urlParams.get('ipId');
       
       if (!posterUrl) {
-        alert('❌ No se proporcionó URL del póster. Debes acceder al puzzle desde un IP registrado.');
+        alert('❌ Poster URL not provided. You must access the puzzle from a registered IP.');
         return;
       }
 
@@ -90,12 +90,12 @@ function Puzzle() {
         setPuzzle(response.data);
         setPieces(response.data.pieces);
       } else {
-        alert('Error creando puzzle: ' + (response.data.error || 'Error desconocido'));
+        alert('Error creating puzzle: ' + (response.data.error || 'Unknown error'));
       }
     } catch (error: any) {
       console.error('Error cargando puzzle:', error);
       const errorMsg = error.response?.data?.error || error.message || 'Error al cargar puzzle';
-      alert('Error: ' + errorMsg + '\n\n💡 Asegúrate de que la URL del póster de IMDB sea válida y accesible.');
+      alert('Error: ' + errorMsg + '\n\n💡 Make sure the IMDB poster URL is valid and accessible.');
     }
   };
 
@@ -174,9 +174,9 @@ function Puzzle() {
       // Verificar si hay regalías pendientes
       if (response.data.hasPendingRoyalties) {
         alert(
-          `⚠️ Tienes ${response.data.pendingCount} regalía${response.data.pendingCount > 1 ? 's' : ''} pendiente${response.data.pendingCount > 1 ? 's' : ''}.\n\n` +
-          `Debes pagar tus regalías antes de resolver más puzzles.\n\n` +
-          `💳 Usa el comando /profile en el bot para pagar tus regalías pendientes.`
+          `⚠️ You have ${response.data.pendingCount} pending royal${response.data.pendingCount > 1 ? 'ties' : 'ty'}.\n\n` +
+          `You must pay your royalties before solving more puzzles.\n\n` +
+          `💳 Use the /profile command in the bot to pay your pending royalties.`
         );
         return;
       }
@@ -203,22 +203,22 @@ function Puzzle() {
         }
         
         // NUEVA LÓGICA: Mostrar mensaje sobre video reenviado y regalía creada
-        let successMessage = `🎉 ¡Puzzle completado en ${formatTime(time)}!\n\n`;
+        let successMessage = `🎉 Puzzle completed in ${formatTime(time)}!\n\n`;
         
         if (response.data.videoForwarded) {
-          successMessage += `✅ Video reenviado a tu chat privado\n`;
+          successMessage += `✅ Video forwarded to your private chat\n`;
         }
         
         if (response.data.royaltyCreated) {
-          successMessage += `💰 Regalía pendiente creada (0.1 IP)\n`;
-          successMessage += `💳 Usa el comando /profile en el bot para pagar tus regalías\n\n`;
+          successMessage += `💰 Pending royalty created (0.1 IP)\n`;
+          successMessage += `💳 Use the /profile command in the bot to pay your royalties\n\n`;
         }
         
         if (derivativeIpIdValue) {
-          successMessage += `📸 Póster registrado como IP derivado\n`;
+          successMessage += `📸 Poster registered as derivative IP\n`;
         }
         
-        successMessage += `\n⚠️ IMPORTANTE: Si tienes regalías pendientes, no podrás resolver más puzzles hasta pagarlas.`;
+        successMessage += `\n⚠️ IMPORTANT: If you have pending royalties, you won't be able to solve more puzzles until you pay them.`;
         
         alert(successMessage);
       } else {
@@ -240,10 +240,10 @@ function Puzzle() {
   if (!puzzle) {
     return (
       <div className="puzzle">
-        <Navigation title="Rompecabezas" />
+        <Navigation title="Puzzle" />
         <div className="puzzle-loading">
           <div className="loading-spinner"></div>
-          <p>Cargando puzzle...</p>
+          <p>Loading puzzle...</p>
         </div>
       </div>
     );
@@ -260,19 +260,19 @@ function Puzzle() {
             <button 
               className="preview-toggle"
               onClick={() => setShowPreview(!showPreview)}
-              title={showPreview ? "Ocultar vista previa" : "Mostrar vista previa"}
+              title={showPreview ? "Hide preview" : "Show preview"}
             >
-              {showPreview ? "👁️ Ocultar" : "👁️ Ver"} Vista Previa
+              {showPreview ? "👁️ Hide" : "👁️ Show"} Preview
             </button>
             <div className="preview-image-container">
               <img 
                 src={originalImageUrl} 
-                alt="Vista previa del póster" 
+                alt="Poster preview" 
                 className="preview-image"
               />
               <div className="preview-overlay">
-                <p>📸 Vista Previa</p>
-                <p className="preview-hint">Usa esta imagen como referencia</p>
+                <p>📸 Preview</p>
+                <p className="preview-hint">Use this image as reference</p>
               </div>
             </div>
           </div>
@@ -283,7 +283,7 @@ function Puzzle() {
             className="preview-toggle-show"
             onClick={() => setShowPreview(true)}
           >
-            👁️ Mostrar Vista Previa
+            👁️ Show Preview
           </button>
         )}
 
@@ -291,7 +291,7 @@ function Puzzle() {
         <div className="puzzle-header">
           <div className="timer">
             ⏱️ {formatTime(time)}
-            {timerPaused && <span style={{ marginLeft: '10px', fontSize: '0.8rem', color: '#ffa500' }}>⏸️ Pausado</span>}
+            {timerPaused && <span style={{ marginLeft: '10px', fontSize: '0.8rem', color: '#ffa500' }}>⏸️ Paused</span>}
           </div>
           {!solved && (
             <button
@@ -316,15 +316,15 @@ function Puzzle() {
                 marginLeft: '10px',
               }}
             >
-              {timerPaused ? '✅ Completado' : '✓ Marcar como Completado'}
+              {timerPaused ? '✅ Completed' : '✓ Mark as Completed'}
             </button>
           )}
           <div className="puzzle-info">
             {selectedPiece !== null && (
-              <span className="selection-hint">Pieza {selectedPiece + 1} seleccionada - Haz clic en otra para intercambiar</span>
+              <span className="selection-hint">Piece {selectedPiece + 1} selected - Click another to swap</span>
             )}
             {selectedPiece === null && (
-              <span className="selection-hint">Haz clic en una pieza para seleccionarla</span>
+              <span className="selection-hint">Click a piece to select it</span>
             )}
           </div>
         </div>
@@ -332,9 +332,9 @@ function Puzzle() {
         {solved ? (
           <div className="puzzle-solved">
             <div className="solved-animation">🎉</div>
-            <h3>¡Felicidades!</h3>
-            <p className="solved-time">Completado en {formatTime(time)}</p>
-            <p className="solved-message">El video ha sido enviado a tu chat privado de Telegram</p>
+            <h3>Congratulations!</h3>
+            <p className="solved-time">Completed in {formatTime(time)}</p>
+            <p className="solved-message">The video has been sent to your private Telegram chat</p>
             {derivativeIpId && (
               <div style={{ 
                 marginTop: '20px', 
@@ -343,7 +343,7 @@ function Puzzle() {
                 borderRadius: '8px' 
               }}>
                 <p className="solved-message" style={{ marginBottom: '10px' }}>
-                  📸 Póster registrado como IP derivado
+                  📸 Poster registered as derivative IP
                 </p>
                 {derivativeTokenId && (
                   <a 
@@ -364,7 +364,7 @@ function Puzzle() {
                       fontSize: '0.9rem'
                     }}
                   >
-                    Ver IP en Explorer: Token #{derivativeTokenId}
+                    View IP in Explorer: Token #{derivativeTokenId}
                   </a>
                 )}
                 {derivativeTxHash && (
@@ -413,7 +413,7 @@ function Puzzle() {
               })}
             </div>
             <p className="puzzle-hint">
-              💡 <strong>Tip:</strong> Haz clic en dos piezas para intercambiarlas. Usa la vista previa como referencia.
+              💡 <strong>Tip:</strong> Click two pieces to swap them. Use the preview as reference.
             </p>
           </div>
         )}

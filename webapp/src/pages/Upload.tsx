@@ -57,7 +57,7 @@ function Upload() {
 
   const searchMovie = async () => {
     if (!title || !year) {
-      alert('Por favor ingresa título y año');
+      alert('Please enter title and year');
       return;
     }
     
@@ -78,9 +78,9 @@ function Upload() {
       const response = await axios.get(`${API_URL}/imdb/movie/${encodeURIComponent(title)}/${year}`);
       if (response.data.success) {
         setImdbData(response.data.data);
-        alert('✅ Película encontrada en IMDB');
+        alert('✅ Movie found in IMDB');
       } else {
-        alert('❌ Película no encontrada: ' + (response.data.error || 'Error desconocido'));
+        alert('❌ Movie not found: ' + (response.data.error || 'Unknown error'));
       }
     } catch (error: any) {
       console.error('❌ Error buscando película:', error);
@@ -165,12 +165,12 @@ function Upload() {
           primaryWalletAddress: dynamicWallet.primaryWallet?.address,
           hasUser: !!dynamicWallet.user,
         });
-        throw new Error('Debes conectar tu wallet primero para registrar IPs. Si ya la conectaste con Dynamic, espera unos segundos y recarga la página.');
+        throw new Error('You must connect your wallet first to register IPs. If you already connected it with Dynamic, wait a few seconds and reload the page.');
       }
       
       // Verificar que esté en la red correcta
       if (dynamicWallet.network !== 1315) {
-        throw new Error('Debes estar conectado a Story Testnet (Chain ID: 1315). Cambia la red en tu wallet de Dynamic.');
+        throw new Error('You must be connected to Story Testnet (Chain ID: 1315). Change the network in your Dynamic wallet.');
       }
       
       console.log('✅ [Upload] Wallet verificada:', {
@@ -243,7 +243,7 @@ function Upload() {
 
       // IMPORTANTE: Verificar que la respuesta tenga los datos necesarios
       if (!storyResponse.data.success) {
-        throw new Error('No se pudo registrar el IP en Story Protocol: ' + (storyResponse.data.error || 'Error desconocido'));
+        throw new Error('Could not register IP on Story Protocol: ' + (storyResponse.data.error || 'Unknown error'));
       }
 
       if (!storyResponse.data.ipId || !storyResponse.data.txHash) {
@@ -342,9 +342,9 @@ function Upload() {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text).then(() => {
-      alert('✅ Copiado al portapapeles');
+      alert('✅ Copied to clipboard');
     }).catch(() => {
-      alert('❌ Error al copiar');
+      alert('❌ Error copying');
     });
   };
 
@@ -366,9 +366,9 @@ function Upload() {
   if (success) {
     return (
       <div className="upload-success">
-        <Navigation title="Registro Exitoso" />
-        <h2>✅ Video Registrado</h2>
-        <p>Tu contenido ha sido registrado como IP en Story Protocol.</p>
+        <Navigation title="Registration Successful" />
+        <h2>✅ Video Registered</h2>
+        <p>Your content has been registered as IP on Story Protocol.</p>
         
         {registeredIpId && (
           <div style={{ 
@@ -406,7 +406,7 @@ function Upload() {
             borderRadius: '8px' 
           }}>
             <p style={{ marginBottom: '10px' }}>
-              <strong>Hash de Transacción:</strong>
+              <strong>Transaction Hash:</strong>
             </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
               <code 
@@ -421,7 +421,7 @@ function Upload() {
                   wordBreak: 'break-all',
                   fontSize: '0.9em'
                 }}
-                title="Haz clic para copiar"
+                title="Click to copy"
               >
                 {txHash}
               </code>
@@ -437,7 +437,7 @@ function Upload() {
                   fontSize: '0.9em'
                 }}
               >
-                📋 Copiar
+                📋 Copy
               </button>
               <a
                 href={getBlockExplorerUrl(txHash)}
@@ -467,23 +467,23 @@ function Upload() {
             borderRadius: '8px'
           }}>
             <p style={{ marginBottom: '10px' }}>
-              <strong>✅ Video Reenviado al Canal Privado</strong>
+              <strong>✅ Video Forwarded to Private Channel</strong>
             </p>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-              El video ha sido publicado en el canal privado. Los usuarios que resuelvan el puzzle obtendrán acceso.
+              The video has been published in the private channel. Users who solve the puzzle will gain access.
             </p>
           </div>
         )}
 
         {imdbData?.poster && registeredIpId && (
           <div style={{ marginTop: '20px' }}>
-            <p>🎮 Crea un puzzle con el póster para gamificar el acceso:</p>
+            <p>🎮 Create a puzzle with the poster to gamify access:</p>
             <a 
               href={`/puzzle?poster=${encodeURIComponent(imdbData.poster)}&ipId=${registeredIpId}&title=${encodeURIComponent(imdbData.title)}&year=${imdbData.year}`}
               className="btn-primary"
               style={{ display: 'inline-block', marginTop: '10px' }}
             >
-              🧩 Crear Puzzle
+              🧩 Create Puzzle
             </a>
           </div>
         )}
@@ -493,7 +493,7 @@ function Upload() {
           className="btn-primary" 
           style={{ marginTop: '30px' }}
         >
-          Registrar Otro Video
+          Register Another Video
         </button>
       </div>
     );
@@ -501,22 +501,22 @@ function Upload() {
 
   return (
     <div className="upload">
-      <Navigation title="Subir Video" />
+      <Navigation title="Upload Video" />
       
       <form onSubmit={handleSubmit} className="upload-form">
         <div className="form-group">
-          <label>Título de la Película/Serie</label>
+          <label>Movie/Series Title</label>
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Ej: The Matrix"
+            placeholder="e.g.: The Matrix"
             required
           />
         </div>
 
         <div className="form-group">
-          <label>Año</label>
+          <label>Year</label>
           <input
             type="number"
             value={year}
@@ -527,7 +527,7 @@ function Upload() {
         </div>
 
         <button type="button" onClick={searchMovie} className="btn-secondary">
-          🔍 Buscar en IMDB
+          🔍 Search IMDB
         </button>
 
         {imdbData && (
@@ -547,10 +547,10 @@ function Upload() {
             borderRadius: '8px',
             marginBottom: '15px'
           }}>
-            <h4>📹 Información del Video (desde Telegram)</h4>
-            <p><strong>Archivo:</strong> {videoInfo.fileName}</p>
-            {videoInfo.fileSizeMB && <p><strong>Tamaño:</strong> {videoInfo.fileSizeMB} MB</p>}
-            {videoInfo.durationMinutes && <p><strong>Duración:</strong> {videoInfo.durationMinutes} minutos</p>}
+            <h4>📹 Video Information (from Telegram)</h4>
+            <p><strong>File:</strong> {videoInfo.fileName}</p>
+            {videoInfo.fileSizeMB && <p><strong>Size:</strong> {videoInfo.fileSizeMB} MB</p>}
+            {videoInfo.durationMinutes && <p><strong>Duration:</strong> {videoInfo.durationMinutes} minutes</p>}
             {videoInfo.videoLink && <p><strong>Link:</strong> <a href={videoInfo.videoLink} target="_blank" rel="noopener noreferrer">{videoInfo.videoLink}</a></p>}
           </div>
         )}
@@ -567,13 +567,13 @@ function Upload() {
           />
           {videoInfo.videoLink && (
             <small style={{ color: '#A78BFA', display: 'block', marginTop: '5px' }}>
-              ✅ URL obtenida automáticamente desde Telegram
+              ✅ URL automatically obtained from Telegram
             </small>
           )}
         </div>
 
         <button type="submit" disabled={loading} className="btn-primary">
-          {loading ? 'Registrando...' : '📤 Registrar IP'}
+          {loading ? 'Registering...' : '📤 Register IP'}
         </button>
       </form>
     </div>

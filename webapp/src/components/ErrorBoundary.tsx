@@ -37,9 +37,9 @@ class ErrorBoundary extends Component<Props, State> {
           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
           color: 'white',
         }}>
-          <h1>⚠️ Error al cargar la aplicación</h1>
+          <h1>⚠️ Error loading application</h1>
           <p style={{ marginTop: '1rem', fontSize: '1.1rem' }}>
-            {this.state.error?.message || 'Ha ocurrido un error inesperado'}
+            {this.state.error?.message || 'An unexpected error occurred'}
           </p>
           <button
             onClick={() => {
@@ -58,11 +58,11 @@ class ErrorBoundary extends Component<Props, State> {
               fontWeight: 600,
             }}
           >
-            Recargar Página
+            Reload Page
           </button>
           <details style={{ marginTop: '2rem', textAlign: 'left', maxWidth: '600px' }}>
             <summary style={{ cursor: 'pointer', marginBottom: '0.5rem' }}>
-              Detalles técnicos
+              Technical Details
             </summary>
             <pre style={{
               background: 'rgba(0,0,0,0.2)',

@@ -115,15 +115,15 @@ function UserIPsList() {
   };
 
   if (loading) {
-    return <div className="loading">Cargando...</div>;
+    return <div className="loading">Loading...</div>;
   }
 
   if (userIPs.length === 0) {
     return (
       <div className="empty-state">
-        <p>Aún no has registrado ningún IP</p>
+        <p>You haven't registered any IPs yet</p>
         <a href="/upload" className="btn-link">
-          📤 Registrar mi primer IP
+          📤 Register my first IP
         </a>
       </div>
     );
@@ -159,7 +159,7 @@ function UserIPsList() {
                 rel="noopener noreferrer"
                 className="user-ip-link"
               >
-                🔗 Ver en Explorer
+                🔗 View in Explorer
               </a>
               {ip.txHash && (
                 <a 
@@ -168,7 +168,7 @@ function UserIPsList() {
                   rel="noopener noreferrer"
                   className="user-ip-link"
                 >
-                  📋 Ver TX
+                  📋 View TX
                 </a>
               )}
             </div>
@@ -301,7 +301,7 @@ function Profile() {
 
   const handlePayRoyalty = async (royaltyId: string) => {
     if (!wallet || !wallet.connected || !wallet.address) {
-      alert('❌ Primero debes conectar tu wallet usando el botón de Dynamic Widget');
+      alert('❌ You must first connect your wallet using the Dynamic Widget button');
       return;
     }
 
@@ -325,9 +325,9 @@ function Profile() {
           `📤 Destinatario: ${info.recipientAddress}\n` +
           `💰 Monto: ${info.amount} ${info.currency}\n` +
           `🎬 Video: ${royalty.videoTitle}\n\n` +
-          `1. Usa tu wallet Dynamic para enviar ${info.amount} ${info.currency} a la dirección de arriba\n` +
-          `2. Copia el TX Hash de la transacción\n` +
-          `3. Pega el TX Hash en el campo de abajo y haz clic en "Verificar Pago"`
+          `1. Use your Dynamic wallet to send ${info.amount} ${info.currency} to the address above\n` +
+          `2. Copy the transaction TX Hash\n` +
+          `3. Paste the TX Hash in the field below and click "Verify Payment"`
         );
       } else {
         throw new Error(payInfoResponse.data.error || 'No se pudo obtener información de pago');
@@ -343,12 +343,12 @@ function Profile() {
 
   const handleVerifyPayment = async () => {
     if (!paymentInfo || !txHashInput.trim()) {
-      alert('❌ Por favor ingresa el TX Hash de la transacción');
+      alert('❌ Please enter the transaction TX Hash');
       return;
     }
 
     if (!wallet || !wallet.address) {
-      alert('❌ No hay wallet conectada');
+      alert('❌ No wallet connected');
       return;
     }
 
@@ -363,13 +363,13 @@ function Profile() {
 
       if (verifyResponse.data.success) {
         alert(
-          `✅ Pago Verificado Exitosamente!\n\n` +
+          `✅ Payment Verified Successfully!\n\n` +
           `🔗 TX Hash: ${txHashInput.trim()}\n` +
-          `📊 Ver en explorador:\n` +
+          `📊 View in explorer:\n` +
           `https://aeneid.storyscan.io/tx/${txHashInput.trim()}\n\n` +
           (verifyResponse.data.videoReSent 
-            ? `✅ El video ha sido reenviado sin protección. Ahora puedes reenviarlo libremente.`
-            : `⚠️ El video no se pudo reenviar automáticamente.`)
+            ? `✅ The video has been resent without protection. You can now forward it freely.`
+            : `⚠️ The video could not be resent automatically.`)
         );
 
         // Limpiar estado
@@ -395,14 +395,14 @@ function Profile() {
 
   return (
     <div className="profile">
-      <Navigation title="Mi Perfil" />
+      <Navigation title="My Profile" />
       
       <div className="profile-content">
         {/* Información de Telegram */}
         {telegramUser && (
           <div className="profile-card telegram-info">
             <div className="card-header">
-              <h3>👤 Usuario de Telegram</h3>
+              <h3>👤 Telegram User</h3>
             </div>
             <div className="user-details">
               <div className="user-avatar">
@@ -427,7 +427,7 @@ function Profile() {
           {wallet && wallet.connected ? (
             <div className="wallet-connected">
               <div className="wallet-address">
-                <span className="label">Dirección:</span>
+                <span className="label">Address:</span>
                 <code className="address">{wallet.address}</code>
                 <button 
                   className="btn-copy-address"
@@ -450,20 +450,20 @@ function Profile() {
                   marginTop: '0.5rem',
                   fontSize: '0.85rem'
                 }}>
-                  ⚠️ Cambia a Story Testnet (Chain ID: 1315) para usar FirstFrame
+                  ⚠️ Switch to Story Testnet (Chain ID: 1315) to use FirstFrame
                 </div>
               )}
               <div className="wallet-balance">
                 <div style={{ marginBottom: '0.75rem' }}>
-                  <span className="label">IP Nativo (para gas):</span>
+                  <span className="label">Native IP (for gas):</span>
                   <span className="balance">
-                    {wallet.balance !== undefined ? `${parseFloat(wallet.balance).toFixed(4)} IP` : 'Cargando...'}
+                    {wallet.balance !== undefined ? `${parseFloat(wallet.balance).toFixed(4)} IP` : 'Loading...'}
                   </span>
                 </div>
                 <div>
-                  <span className="label">MockERC20 (para regalías):</span>
+                  <span className="label">MockERC20 (for royalties):</span>
                   <span className="balance">
-                    {wallet.mockTokenBalance !== undefined ? `${parseFloat(wallet.mockTokenBalance).toFixed(4)} tokens` : 'Cargando...'}
+                    {wallet.mockTokenBalance !== undefined ? `${parseFloat(wallet.mockTokenBalance).toFixed(4)} tokens` : 'Loading...'}
                   </span>
                 </div>
                 {wallet.balance !== undefined && parseFloat(wallet.balance) < 0.001 && (
@@ -485,10 +485,10 @@ function Profile() {
                         marginTop: '0.5rem',
                       }}
                     >
-                      💧 Obtener IP Nativo (Faucet)
+                      💧 Get Native IP (Faucet)
                     </a>
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
-                      Necesitas IP nativo para pagar gas fees
+                      You need native IP to pay gas fees
                     </p>
                   </div>
                 )}
@@ -511,10 +511,10 @@ function Profile() {
                         marginTop: '0.5rem',
                       }}
                     >
-                      🪙 Obtener MockERC20 Tokens
+                      🪙 Get MockERC20 Tokens
                     </a>
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
-                      Necesitas MockERC20 tokens para pagar regalías
+                      You need MockERC20 tokens to pay royalties
                     </p>
                   </div>
                 )}
@@ -525,12 +525,12 @@ function Profile() {
             </div>
           ) : (
             <div className="wallet-disconnected">
-              <p>Conecta tu wallet para gestionar pagos y regalías</p>
+              <p>Connect your wallet to manage payments and royalties</p>
               <div style={{ marginTop: '1rem' }}>
                 <DynamicWidgetWrapper />
               </div>
               <p className="wallet-info">
-                ⚡ Conecta tu wallet usando Dynamic para aprobar y pagar regalías
+                ⚡ Connect your wallet using Dynamic to approve and pay royalties
               </p>
             </div>
           )}
@@ -541,17 +541,17 @@ function Profile() {
           <div className="stat-card">
             <div className="stat-icon">📤</div>
             <div className="stat-value">{stats.ipsRegistered}</div>
-            <div className="stat-label">IPs Registrados</div>
+            <div className="stat-label">Registered IPs</div>
           </div>
           <div className="stat-card">
             <div className="stat-icon">🧩</div>
             <div className="stat-value">{stats.puzzlesCompleted}</div>
-            <div className="stat-label">Puzzles Completados</div>
+            <div className="stat-label">Puzzles Completed</div>
           </div>
           <div className="stat-card">
             <div className="stat-icon">💰</div>
             <div className="stat-value">{stats.royaltiesPending}</div>
-            <div className="stat-label">Regalías Pendientes</div>
+            <div className="stat-label">Pending Royalties</div>
           </div>
         </div>
 
@@ -559,7 +559,7 @@ function Profile() {
         {pendingRoyalties.length > 0 && (
           <div className="profile-card royalties-pending">
             <div className="card-header">
-              <h3>💳 Regalías Pendientes</h3>
+              <h3>💳 Pending Royalties</h3>
             </div>
             <div className="royalties-list">
               {pendingRoyalties.map((royalty) => {
@@ -573,17 +573,17 @@ function Profile() {
                     className={`royalty-item ${isExpired ? 'expired' : ''}`}
                   >
                     <div className="royalty-info">
-                      <h4>{royalty.videoTitle || 'Video protegido'}</h4>
+                      <h4>{royalty.videoTitle || 'Protected video'}</h4>
                       <p className="royalty-details">
-                        Para: {royalty.uploaderName || 'Creador original'} • {royalty.amount} IP
+                        To: {royalty.uploaderName || 'Original creator'} • {royalty.amount} IP
                       </p>
                       {isExpired ? (
                         <p className="royalty-expired">
-                          ⏰ Expirada - Serás penalizado
+                          ⏰ Expired - You will be penalized
                         </p>
                       ) : (
                         <p className="royalty-time">
-                          ⏰ {minutesLeft} minuto{minutesLeft !== 1 ? 's' : ''} restante{minutesLeft !== 1 ? 's' : ''}
+                          ⏰ {minutesLeft} minute{minutesLeft !== 1 ? 's' : ''} remaining
                         </p>
                       )}
                     </div>
@@ -603,7 +603,7 @@ function Profile() {
                               <strong style={{ color: '#000' }}>💰 Monto:</strong> <span style={{ color: '#000' }}>{paymentInfo.amount} {paymentInfo.currency}</span>
                             </p>
                             <div style={{ marginBottom: '0.75rem' }}>
-                              <strong style={{ color: '#000' }}>📤 Dirección del destinatario:</strong>
+                              <strong style={{ color: '#000' }}>📤 Recipient address:</strong>
                               <div style={{ 
                                 display: 'flex', 
                                 alignItems: 'center', 
@@ -627,7 +627,7 @@ function Profile() {
                                 <button
                                   onClick={() => {
                                     navigator.clipboard.writeText(paymentInfo.recipientAddress);
-                                    alert('✅ Dirección copiada al portapapeles');
+                                    alert('✅ Address copied to clipboard');
                                   }}
                                   style={{
                                     padding: '0.5rem 1rem',
@@ -643,9 +643,9 @@ function Profile() {
                                   }}
                                   onMouseOver={(e) => e.currentTarget.style.background = '#357ae8'}
                                   onMouseOut={(e) => e.currentTarget.style.background = '#4285F4'}
-                                  title="Copiar dirección"
+                                  title="Copy address"
                                 >
-                                  📋 Copiar
+                                  📋 Copy
                                 </button>
                               </div>
                             </div>
@@ -657,18 +657,18 @@ function Profile() {
                               fontSize: '0.85rem',
                               color: '#1976d2'
                             }}>
-                              <strong>📋 Pasos para pagar:</strong>
+                              <strong>📋 Steps to pay:</strong>
                               <ol style={{ margin: '0.5rem 0 0 1.2rem', padding: 0 }}>
-                                <li style={{ marginBottom: '0.25rem' }}>Copia la dirección de arriba</li>
-                                <li style={{ marginBottom: '0.25rem' }}>Envía {paymentInfo.amount} {paymentInfo.currency} usando tu wallet Dynamic</li>
-                                <li style={{ marginBottom: '0.25rem' }}>Ingresa el TX Hash abajo</li>
-                                <li>Haz clic en "Verificar Pago"</li>
+                                <li style={{ marginBottom: '0.25rem' }}>Copy the address above</li>
+                                <li style={{ marginBottom: '0.25rem' }}>Send {paymentInfo.amount} {paymentInfo.currency} using your Dynamic wallet</li>
+                                <li style={{ marginBottom: '0.25rem' }}>Enter the TX Hash below</li>
+                                <li>Click "Verify Payment"</li>
                               </ol>
                             </div>
                           </div>
                           <input
                             type="text"
-                            placeholder="Pega el TX Hash aquí (0x...)"
+                            placeholder="Paste the TX Hash here (0x...)"
                             value={txHashInput}
                             onChange={(e) => setTxHashInput(e.target.value)}
                             style={{
@@ -683,7 +683,7 @@ function Profile() {
                             onClick={handleVerifyPayment}
                             disabled={verifyingPayment || !txHashInput.trim()}
                           >
-                            {verifyingPayment ? 'Verificando...' : '✅ Verificar Pago'}
+                            {verifyingPayment ? 'Verifying...' : '✅ Verify Payment'}
                           </button>
                           <button
                             onClick={() => {
@@ -699,7 +699,7 @@ function Profile() {
                               fontSize: '0.85rem',
                             }}
                           >
-                            Cancelar
+                            Cancel
                           </button>
                         </>
                       ) : (
@@ -708,7 +708,7 @@ function Profile() {
                           onClick={() => handlePayRoyalty(royalty.id)}
                           disabled={loading || isExpired}
                         >
-                          {loading ? 'Procesando...' : `💳 Pagar ${royalty.amount} IP`}
+                          {loading ? 'Processing...' : `💳 Pay ${royalty.amount} IP`}
                         </button>
                       )}
                     </div>
@@ -721,7 +721,7 @@ function Profile() {
 
         {/* Mis IPs */}
         <div className="profile-section">
-          <h3>📚 Mis IPs ({stats.ipsRegistered})</h3>
+          <h3>📚 My IPs ({stats.ipsRegistered})</h3>
           <UserIPsList />
         </div>
 

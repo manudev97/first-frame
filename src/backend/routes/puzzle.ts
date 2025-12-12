@@ -42,7 +42,7 @@ router.post('/validate', async (req, res) => {
       console.error(`   Request completo:`, JSON.stringify(req.body, null, 2));
       return res.status(400).json({
         success: false,
-        error: 'ipId es requerido para resolver el puzzle',
+        error: 'ipId is required to solve the puzzle',
         accessGranted: false,
       });
     }
@@ -52,7 +52,7 @@ router.post('/validate', async (req, res) => {
       console.error(`   Request completo:`, JSON.stringify(req.body, null, 2));
       return res.status(400).json({
         success: false,
-        error: 'telegramUserId es requerido para resolver el puzzle',
+        error: 'telegramUserId is required to solve the puzzle',
         accessGranted: false,
       });
     }
@@ -67,7 +67,7 @@ router.post('/validate', async (req, res) => {
         console.log(`⚠️  Usuario ${telegramUserId} tiene ${pendingCount} regalía(s) pendiente(s). Bloqueando puzzle.`);
         return res.json({
           success: false,
-          message: `⚠️ Tienes ${pendingCount} regalía${pendingCount > 1 ? 's' : ''} pendiente${pendingCount > 1 ? 's' : ''}. Debes pagar tus regalías antes de resolver más puzzles.`,
+          message: `⚠️ You have ${pendingCount} pending royal${pendingCount > 1 ? 'ties' : 'ty'}. You must pay your royalties before solving more puzzles.`,
           accessGranted: false,
           hasPendingRoyalties: true,
           pendingCount,
@@ -355,7 +355,7 @@ router.post('/validate', async (req, res) => {
             console.error(`   Esto significa que el IP no fue guardado correctamente durante el registro`);
             return res.json({
               success: true,
-              message: '¡Puzzle completado correctamente!',
+              message: 'Puzzle completed successfully!',
               accessGranted: true,
               videoForwarded: false,
               royaltyCreated: false,
@@ -414,31 +414,31 @@ router.post('/validate', async (req, res) => {
             let captionParts = [
               `🎬 ${correctTitle}${ip.year ? ` (${ip.year})` : ''}`,
               ``,
-              `✅ Registrado como IP en Story Protocol`,
+              `✅ Registered as IP on Story Protocol`,
               `🔗 IP ID: ${ip.ipId}`,
             ];
             
             if (correctTokenId) {
-              captionParts.push(`📦 Instancia: ${correctTokenId}`);
+              captionParts.push(`📦 Instance: ${correctTokenId}`);
             }
             
             captionParts.push(
-              `🔗 Ver en Explorer: ${explorerUrl}`,
-              `📤 Subido por: ${ip.uploaderName || (ip.uploader ? ip.uploader.replace('TelegramUser_', 'Usuario ') : 'Desconocido')}`,
+              `🔗 View in Explorer: ${explorerUrl}`,
+              `📤 Uploaded by: ${ip.uploaderName || (ip.uploader ? ip.uploader.replace('TelegramUser_', 'User ') : 'Unknown')}`,
               ``,
-              `🎉 Felicidades haz resuelto el Puzzle puedes compartir este video y pagar tus regalías en : @firstframe_ipbot`,
+              `🎉 Congratulations! You solved the puzzle. You can share this video and pay your royalties at: @firstframe_ipbot`,
               ``,
-              `⚠️ Este video está protegido. Debes pagar la regalía (0.1 IP) para poder reenviarlo.`,
-              `💳 Regalía pendiente: 0.1 IP`,
+              `⚠️ This video is protected. You must pay the royalty (0.1 IP) to forward it.`,
+              `💳 Pending royalty: 0.1 IP`,
             );
             
             // CRÍTICO: Agregar address del dueño si está disponible
             if (ownerAddress) {
-              captionParts.push(`👤 Dueño: ${ownerAddress.substring(0, 8)}...${ownerAddress.substring(36)}`);
-              captionParts.push(`💼 Paga con Dynamic usando esta address`);
+              captionParts.push(`👤 Owner: ${ownerAddress.substring(0, 8)}...${ownerAddress.substring(36)}`);
+              captionParts.push(`💼 Pay with Dynamic using this address`);
             }
             
-            captionParts.push(`💳 Usa el comando /profile en el bot para pagar tus regalías pendientes.`);
+            captionParts.push(`💳 Use the /profile command in the bot to pay your pending royalties.`);
             
             const fullCaption = captionParts.join('\n');
             
@@ -630,7 +630,7 @@ router.post('/validate', async (req, res) => {
     } else {
       res.json({
         success: false,
-        message: 'Solución incorrecta. Intenta de nuevo.',
+        message: 'Incorrect solution. Try again.',
         accessGranted: false,
       });
     }

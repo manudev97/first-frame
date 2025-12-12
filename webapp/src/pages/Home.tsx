@@ -81,7 +81,7 @@ function Home() {
           />
         </div>
         <h1>🎬 FirstFrame</h1>
-        <p className="hero-subtitle">Protege tu contenido audiovisual con blockchain</p>
+        <p className="hero-subtitle">Protect your audiovisual content with blockchain</p>
       </div>
 
       {/* Botón de Conexión Prominente - PRIMERO y MUY Visible */}
@@ -98,17 +98,17 @@ function Home() {
             marginBottom: '1rem',
           }}>
             <h3 style={{ color: 'white', margin: '0 0 0.5rem 0', fontSize: '1.2rem' }}>
-              {inTelegram ? '🔵 Conecta tu Wallet' : '🔗 Conecta tu Wallet'}
+              {inTelegram ? '🔵 Connect your Wallet' : '🔗 Connect your Wallet'}
             </h3>
             <p style={{ color: 'rgba(255, 255, 255, 0.9)', margin: 0, fontSize: '0.9rem' }}>
               {inTelegram 
-                ? 'Usa tu correo electrónico para crear tu wallet (temporal hasta activar Telegram Auto-Wallets)'
-                : 'Regístrate con tu correo electrónico y verifica con el código que recibirás'
+                ? 'Use your email to create your wallet (temporary until Telegram Auto-Wallets is activated)'
+                : 'Sign up with your email and verify with the code you will receive'
               }
             </p>
           </div>
           <div style={{ width: '100%' }}>
-            <Suspense fallback={<div style={{ padding: '1rem', textAlign: 'center', color: 'white' }}>Cargando wallet...</div>}>
+            <Suspense fallback={<div style={{ padding: '1rem', textAlign: 'center', color: 'white' }}>Loading wallet...</div>}>
               {inTelegram ? (
                 <TelegramLoginButton />
               ) : (
@@ -126,14 +126,14 @@ function Home() {
           <div className="wallet-status">
             <div className="wallet-icon-connected">✅</div>
             <div className="wallet-info">
-              <h3>Wallet Conectado</h3>
+              <h3>Wallet Connected</h3>
               <p className="wallet-address">
                 {dynamicWallet.address?.substring(0, 8)}...{dynamicWallet.address?.substring(36)}
               </p>
               <p className="wallet-status-text">
                 {dynamicWallet.network === 1315 
-                  ? '✅ Conectado a Story Testnet'
-                  : `⚠️ Red: ${dynamicWallet.network || 'Desconocida'} (Cambia a Story Testnet)`}
+                  ? '✅ Connected to Story Testnet'
+                  : `⚠️ Network: ${dynamicWallet.network || 'Unknown'} (Switch to Story Testnet)`}
               </p>
             </div>
           </div>
@@ -153,10 +153,10 @@ function Home() {
           style={{ gridColumn: 'span 2' }}
         >
           <div className="icon">👤</div>
-          <h3>Mi Perfil</h3>
-          <p>Ver mis IPs registrados y regalías</p>
+          <h3>My Profile</h3>
+          <p>View my registered IPs and royalties</p>
           {walletConnected && (
-            <div className="profile-badge">Wallet conectado ✓</div>
+            <div className="profile-badge">Wallet connected ✓</div>
           )}
         </Link>
 
@@ -166,13 +166,13 @@ function Home() {
           onClick={(e) => {
             if (!walletConnected) {
               e.preventDefault();
-              alert('⚠️ Primero debes conectar tu wallet para registrar IPs');
+              alert('⚠️ You must first connect your wallet to register IPs');
             }
           }}
         >
           <div className="icon">📤</div>
-          <h3>Subir Video</h3>
-          <p>Registra tu contenido como IP</p>
+          <h3>Upload Video</h3>
+          <p>Register your content as IP</p>
         </Link>
 
         <Link 
@@ -181,13 +181,13 @@ function Home() {
           onClick={(e) => {
             if (!walletConnected) {
               e.preventDefault();
-              alert('⚠️ Primero debes conectar tu wallet para acceder al marketplace');
+              alert('⚠️ You must first connect your wallet to access the marketplace');
             }
           }}
         >
           <div className="icon">🛒</div>
           <h3>Marketplace</h3>
-          <p>Explorar IPs registrados</p>
+          <p>Explore registered IPs</p>
         </Link>
 
         <Link 
@@ -196,13 +196,13 @@ function Home() {
           onClick={(e) => {
             if (!walletConnected) {
               e.preventDefault();
-              alert('⚠️ Primero debes conectar tu wallet para reclamar regalías');
+              alert('⚠️ You must first connect your wallet to claim royalties');
             }
           }}
         >
           <div className="icon">💰</div>
-          <h3>Reclamar</h3>
-          <p>Obtener mis regalías</p>
+          <h3>Claim</h3>
+          <p>Get my royalties</p>
         </Link>
       </div>
     </div>

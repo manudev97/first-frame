@@ -87,26 +87,26 @@ function generateTelegramHash(data: {
 bot.command('start', async (ctx: Context) => {
   if (!LOGIN_URL || LOGIN_URL.includes('localhost')) {
     console.warn('⚠️  TELEGRAM_WEBAPP_URL no está configurado o usa localhost. Los botones de Mini App no funcionarán.');
-    await ctx.reply(
-      '🎬 ¡Bienvenido a FirstFrame!\n\n' +
-      'Protege tu contenido audiovisual y gana acceso exclusivo resolviendo rompecabezas.\n\n' +
-      'Comandos disponibles:\n' +
-      '/upload - Subir video para registro\n' +
-      '/puzzle - Jugar rompecabezas\n' +
-      '/profile - Ver tu perfil\n' +
-      '/claim - Reclamar regalías\n' +
-      '/report - Reportar infracción\n\n' +
-      '⚠️ Configura TELEGRAM_WEBAPP_URL con una URL HTTPS válida (usa ngrok para desarrollo)'
-    );
+  await ctx.reply(
+    '🎬 Welcome to FirstFrame!\n\n' +
+    'Protect your audiovisual content and gain exclusive access by solving puzzles.\n\n' +
+    'Available commands:\n' +
+    '/upload - Upload video for registration\n' +
+    '/puzzle - Play puzzle\n' +
+    '/profile - View your profile\n' +
+    '/claim - Claim royalties\n' +
+    '/report - Report infringement\n\n' +
+    '⚠️ Configure TELEGRAM_WEBAPP_URL with a valid HTTPS URL (use ngrok for development)'
+  );
     return;
   }
 
   if (!TOKEN) {
     console.warn('⚠️  TELEGRAM_BOT_TOKEN no está configurado. Telegram Auto-Wallets no funcionará.');
     await ctx.reply(
-      '🎬 ¡Bienvenido a FirstFrame!\n\n' +
-      '⚠️ Error: TELEGRAM_BOT_TOKEN no está configurado.\n\n' +
-      'Por favor configura el token en tu archivo .env'
+      '🎬 Welcome to FirstFrame!\n\n' +
+      '⚠️ Error: TELEGRAM_BOT_TOKEN is not configured.\n\n' +
+      'Please configure the token in your .env file'
     );
     return;
   }
@@ -114,7 +114,7 @@ bot.command('start', async (ctx: Context) => {
   // Extraer datos del usuario del contexto
   const from = ctx.from;
   if (!from) {
-    await ctx.reply('❌ Error: No se pudieron obtener los datos del usuario.');
+    await ctx.reply('❌ Error: Could not retrieve user data.');
     return;
   }
 
@@ -149,18 +149,18 @@ bot.command('start', async (ctx: Context) => {
   const webappUrlWithToken = `${LOGIN_URL}/?telegramAuthToken=${encodedTelegramAuthToken}`;
 
   await ctx.reply(
-    '🎬 ¡Bienvenido a FirstFrame!\n\n' +
-    'Protege tu contenido audiovisual y gana acceso exclusivo resolviendo rompecabezas.\n\n' +
-    'Comandos disponibles:\n' +
-    '/upload - Subir video para registro\n' +
-    '/puzzle - Jugar rompecabezas\n' +
-    '/profile - Ver tu perfil\n' +
-    '/claim - Reclamar regalías\n' +
-    '/report - Reportar infracción',
+    '🎬 Welcome to FirstFrame!\n\n' +
+    'Protect your audiovisual content and gain exclusive access by solving puzzles.\n\n' +
+    'Available commands:\n' +
+    '/upload - Upload video for registration\n' +
+    '/puzzle - Play puzzle\n' +
+    '/profile - View your profile\n' +
+    '/claim - Claim royalties\n' +
+    '/report - Report infringement',
     {
       reply_markup: {
         inline_keyboard: [[
-          { text: '🎮 Abrir Mini App', web_app: { url: webappUrlWithToken } }
+          { text: '🎮 Open Mini App', web_app: { url: webappUrlWithToken } }
         ]]
       }
     }
@@ -192,17 +192,17 @@ bot.command('upload', async (ctx: Context) => {
     
     replyOptions.reply_markup = {
       inline_keyboard: [[
-        { text: '📤 Subir Video', web_app: { url } }
+        { text: '📤 Upload Video', web_app: { url } }
       ]]
     };
   }
   
   await ctx.reply(
-    '📤 Para subir un video:\n\n' +
-    '1. Envía el video o link del video\n' +
-    '2. Proporciona el nombre de la película/serie\n' +
-    '3. Proporciona el año de lanzamiento\n\n' +
-    'El sistema registrará automáticamente tu contenido como IP en Story Protocol.',
+    '📤 To upload a video:\n\n' +
+    '1. Send the video or video link\n' +
+    '2. Provide the movie/series name\n' +
+    '3. Provide the release year\n\n' +
+    'The system will automatically register your content as IP on Story Protocol.',
     replyOptions
   );
 });
@@ -231,14 +231,14 @@ bot.command('puzzle', async (ctx: Context) => {
     
     replyOptions.reply_markup = {
       inline_keyboard: [[
-        { text: '🎮 Jugar Ahora', web_app: { url } }
+        { text: '🎮 Play Now', web_app: { url } }
       ]]
     };
   }
   
   await ctx.reply(
-    '🧩 ¡Resuelve el rompecabezas y gana acceso exclusivo!\n\n' +
-    'Los primeros en completar el rompecabezas obtienen acceso al canal privado.',
+    '🧩 Solve the puzzle and gain exclusive access!\n\n' +
+    'The first to complete the puzzle get access to the private channel.',
     replyOptions
   );
 });
@@ -275,14 +275,14 @@ bot.command('profile', async (ctx: Context) => {
     
     replyOptions.reply_markup = {
       inline_keyboard: [[
-        { text: '📊 Ver Detalles', web_app: { url } }
+        { text: '📊 View Details', web_app: { url } }
       ]]
     };
   }
 
   // CRÍTICO: Obtener estadísticas usando la API del backend
   // El backend intentará usar Dynamic wallet si está disponible
-  let statsMessage = `👤 Tu Perfil\n\nID: ${userId}\n`;
+  let statsMessage = `👤 Your Profile\n\nID: ${userId}\n`;
   
   try {
     // CRÍTICO: Llamar al endpoint del backend
@@ -298,30 +298,30 @@ bot.command('profile', async (ctx: Context) => {
       if (walletType === 'dynamic' && walletAddress) {
         // CRÍTICO: Mostrar datos de Dynamic wallet
         statsMessage += `💼 Wallet: ${walletAddress.substring(0, 8)}...${walletAddress.substring(36)} (Dynamic ✅)\n\n`;
-        statsMessage += `IPs Registrados: ${stats?.ipsRegistered || 0}\n`;
-        statsMessage += `Rompecabezas Completados: ${stats?.puzzlesCompleted || 0}\n`;
-        statsMessage += `Regalías Pendientes: ${stats?.royaltiesPending || '0.00'} IP\n\n`;
+        statsMessage += `Registered IPs: ${stats?.ipsRegistered || 0}\n`;
+        statsMessage += `Puzzles Completed: ${stats?.puzzlesCompleted || 0}\n`;
+        statsMessage += `Pending Royalties: ${stats?.royaltiesPending || '0.00'} IP\n\n`;
         statsMessage += `💰 Balances:\n`;
-        statsMessage += `   IP Nativo: ${stats?.balances?.ip || '0.00'} IP (para gas)\n`;
-        statsMessage += `   MockERC20: ${stats?.balances?.mockToken || '0.00'} tokens (para regalías)`;
+        statsMessage += `   Native IP: ${stats?.balances?.ip || '0.00'} IP (for gas)\n`;
+        statsMessage += `   MockERC20: ${stats?.balances?.mockToken || '0.00'} tokens (for royalties)`;
       } else {
         // No hay Dynamic wallet conectada
-        statsMessage += `\n⚠️ No hay wallet de Dynamic conectada.\n\n`;
-        statsMessage += `Para ver tu perfil completo:\n`;
-        statsMessage += `1. Abre la mini-app usando el botón de abajo\n`;
-        statsMessage += `2. Conecta tu wallet de Dynamic\n`;
-        statsMessage += `3. Vuelve a usar /profile para ver tus estadísticas`;
+        statsMessage += `\n⚠️ No Dynamic wallet connected.\n\n`;
+        statsMessage += `To view your full profile:\n`;
+        statsMessage += `1. Open the mini-app using the button below\n`;
+        statsMessage += `2. Connect your Dynamic wallet\n`;
+        statsMessage += `3. Use /profile again to view your statistics`;
       }
     } else {
       throw new Error('Error en respuesta del backend');
     }
   } catch (error: any) {
     console.error('Error obteniendo estadísticas del usuario:', error);
-    statsMessage += 'IPs Registrados: 0\n';
-    statsMessage += 'Rompecabezas Completados: 0\n';
-    statsMessage += 'Regalías Pendientes: 0 IP\n';
-    statsMessage += '💰 Balance IP: N/A';
-    statsMessage += '\n\n⚠️ No se pudieron cargar las estadísticas completas. Abre la mini-app para usar Dynamic.';
+    statsMessage += 'Registered IPs: 0\n';
+    statsMessage += 'Puzzles Completed: 0\n';
+    statsMessage += 'Pending Royalties: 0 IP\n';
+    statsMessage += '💰 IP Balance: N/A';
+    statsMessage += '\n\n⚠️ Could not load full statistics. Open the mini-app to use Dynamic.';
   }
   
   await ctx.reply(statsMessage, replyOptions);
@@ -346,28 +346,28 @@ bot.command('claim', async (ctx: Context) => {
     if (claimResponse.data.success) {
       const { totalAmount, totalClaimed, royaltiesClaimed, balances } = claimResponse.data;
       
-      let message = `✅ Regalías Reclamadas Exitosamente\n\n`;
-      message += `💰 Total Reclamado: ${totalClaimed} IP\n`;
-      message += `📊 Regalías Procesadas: ${royaltiesClaimed}\n`;
+      let message = `✅ Royalties Claimed Successfully\n\n`;
+      message += `💰 Total Claimed: ${totalClaimed} IP\n`;
+      message += `📊 Royalties Processed: ${royaltiesClaimed}\n`;
       
       if (balances) {
         message += `\n📊 Balances:\n`;
-        message += `Antes: ${parseFloat(balances.before).toFixed(4)} IP\n`;
-        message += `Después: ${parseFloat(balances.after).toFixed(4)} IP\n`;
-        message += `Diferencia: ${balances.difference} IP\n`;
+        message += `Before: ${parseFloat(balances.before).toFixed(4)} IP\n`;
+        message += `After: ${parseFloat(balances.after).toFixed(4)} IP\n`;
+        message += `Difference: ${balances.difference} IP\n`;
       }
       
-      message += `\n💡 Las regalías ya están en tu wallet de Story Testnet.`;
+      message += `\n💡 Royalties are now in your Story Testnet wallet.`;
       
       await ctx.reply(message);
     } else {
       await ctx.reply(
-        `ℹ️ ${claimResponse.data.message || 'No tienes regalías reclamables en este momento.'}`
+        `ℹ️ ${claimResponse.data.message || 'You have no claimable royalties at this time.'}`
       );
     }
   } catch (error: any) {
     console.error('Error reclamando regalías:', error);
-    const errorMsg = error.response?.data?.error || error.message || 'Error al reclamar regalías';
+    const errorMsg = error.response?.data?.error || error.message || 'Error claiming royalties';
     await ctx.reply(`❌ Error: ${errorMsg}`);
   }
 });
@@ -396,14 +396,14 @@ bot.command('report', async (ctx: Context) => {
     
     replyOptions.reply_markup = {
       inline_keyboard: [[
-        { text: '📝 Reportar', web_app: { url } }
+        { text: '📝 Report', web_app: { url } }
       ]]
     };
   }
   
   await ctx.reply(
-    '🚨 Reportar Infracción\n\n' +
-    'Si detectas que alguien está usando tu contenido sin autorización, repórtalo aquí.',
+    '🚨 Report Infringement\n\n' +
+    'If you detect someone using your content without authorization, report it here.',
     replyOptions
   );
 });
@@ -469,18 +469,18 @@ bot.on(message('video'), async (ctx: Context) => {
     
     replyOptions.reply_markup = {
       inline_keyboard: [[
-        { text: '📤 Registrar IP', web_app: { url: `${LOGIN_URL}/upload?${params.toString()}` } }
+        { text: '📤 Register IP', web_app: { url: `${LOGIN_URL}/upload?${params.toString()}` } }
       ]]
     };
   }
   
-  const infoText = `📹 Video detectado:\n\n` +
-    `📁 Nombre: ${videoInfo.fileName}\n` +
-    (videoInfo.fileSize ? `💾 Tamaño: ${videoInfo.fileSize} MB\n` : '') +
-    (videoInfo.duration ? `⏱️ Duración: ${videoInfo.duration} minutos\n` : '') +
+  const infoText = `📹 Video detected:\n\n` +
+    `📁 Name: ${videoInfo.fileName}\n` +
+    (videoInfo.fileSize ? `💾 Size: ${videoInfo.fileSize} MB\n` : '') +
+    (videoInfo.duration ? `⏱️ Duration: ${videoInfo.duration} minutes\n` : '') +
     `🔗 Link: ${videoLink}\n\n` +
-    `✅ Este video será reenviado al canal privado una vez que lo registres como IP.\n\n` +
-    `Para registrar este video como IP, haz clic en "Registrar IP" y completa la información.`;
+    `✅ This video will be forwarded to the private channel once you register it as IP.\n\n` +
+    `To register this video as IP, click "Register IP" and complete the information.`;
   
   await ctx.reply(infoText, replyOptions);
   

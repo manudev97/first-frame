@@ -173,20 +173,20 @@ router.post('/forward-to-channel', async (req, res) => {
         let captionParts = [
           `🎬 ${title}${year ? ` (${year})` : ''}`,
           ``,
-          `✅ Registrado como IP en Story Protocol`,
+          `✅ Registered as IP on Story Protocol`,
           `🔗 IP ID: ${ipId}`,
         ];
 
         // Agregar instancia si está disponible
         if (tokenId) {
-          captionParts.push(`📦 Instancia: ${tokenId}`);
+          captionParts.push(`📦 Instance: ${tokenId}`);
         }
 
         captionParts.push(
-          `🔗 Ver en Explorer: ${explorerUrl}`,
-          `📤 Subido por: ${uploaderName || `Usuario ${uploaderTelegramId}`}`,
+          `🔗 View in Explorer: ${explorerUrl}`,
+          `📤 Uploaded by: ${uploaderName || `User ${uploaderTelegramId}`}`,
           ``,
-          `🎉 Felicidades haz resuelto el Puzzle puedes compartir este video y pagar tus regalías en : @firstframe_ipbot`
+          `🎉 Congratulations! You solved the puzzle. You can share this video and pay your royalties at: @firstframe_ipbot`
         );
 
         const videoCaption = captionParts.join('\n');
@@ -226,19 +226,19 @@ router.post('/forward-to-channel', async (req, res) => {
             let captionParts = [
               `🎬 ${title}${year ? ` (${year})` : ''}`,
               ``,
-              `✅ Registrado como IP en Story Protocol`,
+              `✅ Registered as IP on Story Protocol`,
               `🔗 IP ID: ${ipId}`,
             ];
 
             if (tokenId) {
-              captionParts.push(`📦 Instancia: ${tokenId}`);
+              captionParts.push(`📦 Instance: ${tokenId}`);
             }
 
             captionParts.push(
-              `🔗 Ver en Explorer: ${explorerUrl}`,
-              `📤 Subido por: ${uploaderName || `Usuario ${uploaderTelegramId}`}`,
+              `🔗 View in Explorer: ${explorerUrl}`,
+              `📤 Uploaded by: ${uploaderName || `User ${uploaderTelegramId}`}`,
               ``,
-              `🎉 Felicidades haz resuelto el Puzzle puedes compartir este video y pagar tus regalías en : @firstframe_ipbot`
+              `🎉 Congratulations! You solved the puzzle. You can share this video and pay your royalties at: @firstframe_ipbot`
             );
 
             const videoCaption = captionParts.join('\n');

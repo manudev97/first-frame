@@ -30,16 +30,16 @@ function Claim() {
 
   return (
     <div className="claim">
-      <Navigation title="Reclamar Regalías" />
+      <Navigation title="Claim Royalties" />
       
       <div className="claim-info">
         <div className="claim-amount">
-          <div className="amount-label">Regalías Pendientes</div>
+          <div className="amount-label">Pending Royalties</div>
           <div className="amount-value">0 $IP</div>
         </div>
         
         <p className="claim-description">
-          Tus regalías se distribuyen automáticamente según los términos de licencia definidos en Story Protocol.
+          Your royalties are automatically distributed according to the license terms defined in Story Protocol.
         </p>
       </div>
 
@@ -48,12 +48,12 @@ function Claim() {
         disabled={loading || success}
         className="btn-claim"
       >
-        {loading ? 'Procesando...' : success ? '✅ Reclamado' : '💳 Reclamar Regalías'}
+        {loading ? 'Processing...' : success ? '✅ Claimed' : '💳 Claim Royalties'}
       </button>
 
       {success && (
         <div className="claim-success">
-          <p>✅ Regalías reclamadas exitosamente</p>
+          <p>✅ Royalties claimed successfully</p>
         </div>
       )}
     </div>

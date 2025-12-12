@@ -36,7 +36,7 @@ export function LazyDynamicWidget() {
         alignItems: 'center',
         justifyContent: 'center',
       }}>
-        Cargando wallet...
+        Loading wallet...
       </div>
     );
   }
@@ -60,7 +60,7 @@ export function LazyDynamicWidget() {
         alignItems: 'center',
         justifyContent: 'center',
       }}>
-        Error cargando wallet
+        Error loading wallet
       </div>
     );
   }
