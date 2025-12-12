@@ -556,7 +556,7 @@ function Upload() {
         )}
 
         <div className="form-group">
-          <label>URL del Video {videoInfo.videoLink ? '(desde Telegram)' : ''}</label>
+          <label>Video URL {videoInfo.videoLink ? '(from Telegram)' : ''}</label>
           <input
             type="url"
             value={videoUrl || videoInfo.videoLink || ''}

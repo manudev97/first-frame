@@ -21,6 +21,7 @@ function Puzzle() {
   const [pieces, setPieces] = useState<PuzzlePiece[]>([]);
   const [selectedPiece, setSelectedPiece] = useState<number | null>(null);
   const [solved, setSolved] = useState(false);
+  const [isChecking, setIsChecking] = useState(false); // CRÍTICO: Prevenir llamadas concurrentes
   const [time, setTime] = useState(0);
   const [timerStarted, setTimerStarted] = useState(false);
   const [timerPaused, setTimerPaused] = useState(false); // CRÍTICO: Estado para pausar el timer
@@ -130,11 +131,14 @@ function Puzzle() {
       return;
     }
     
-    // CRÍTICO: Prevenir múltiples llamadas si ya está resuelto
-    if (solved) {
-      console.log('⚠️  Puzzle ya está resuelto, ignorando llamada duplicada a checkSolution');
+    // CRÍTICO: Prevenir múltiples llamadas si ya está resuelto O si ya se está verificando
+    if (solved || isChecking) {
+      console.log('⚠️  Puzzle ya está resuelto o se está verificando, ignorando llamada duplicada a checkSolution');
       return;
     }
+    
+    // CRÍTICO: Marcar como "verificando" inmediatamente para prevenir llamadas concurrentes
+    setIsChecking(true);
     
     const solution = currentPieces.map((p) => p.id);
     const urlParams = new URLSearchParams(window.location.search);
@@ -173,6 +177,7 @@ function Puzzle() {
       
       // Verificar si hay regalías pendientes
       if (response.data.hasPendingRoyalties) {
+        setIsChecking(false); // Liberar el flag antes de retornar
         alert(
           `⚠️ You have ${response.data.pendingCount} pending royal${response.data.pendingCount > 1 ? 'ties' : 'ty'}.\n\n` +
           `You must pay your royalties before solving more puzzles.\n\n` +
@@ -183,8 +188,10 @@ function Puzzle() {
       
       // IMPORTANTE: Solo mostrar notificación si el puzzle está realmente resuelto
       if (response.data.success && response.data.accessGranted) {
+        // CRÍTICO: Establecer solved ANTES de mostrar el alert para prevenir llamadas duplicadas
         setSolved(true);
         setShowPreview(false);
+        setIsChecking(false); // Liberar el flag después de establecer solved
         
         // Guardar datos del IP derivado y canal para mostrar en la UI
         const derivativeIpIdValue = response.data.derivativeIpId;
@@ -220,15 +227,19 @@ function Puzzle() {
         
         successMessage += `\n⚠️ IMPORTANT: If you have pending royalties, you won't be able to solve more puzzles until you pay them.`;
         
-        alert(successMessage);
+        // CRÍTICO: Solo mostrar alert si realmente se resolvió (no si ya estaba resuelto)
+        if (!solved) {
+          alert(successMessage);
+        }
       } else {
         // Feedback visual sin alert intrusivo - NO mostrar notificación si no está resuelto
         console.log('Solución incorrecta, continuar intentando...');
         // NO mostrar ninguna notificación si el puzzle no está resuelto
       }
-    } catch (error: any) {
-      console.error('Error validando solución:', error);
-    }
+      } catch (error: any) {
+        console.error('Error validando solución:', error);
+        setIsChecking(false); // CRÍTICO: Liberar el flag en caso de error
+      }
   };
 
   const formatTime = (seconds: number) => {
@@ -293,16 +304,15 @@ function Puzzle() {
             ⏱️ {formatTime(time)}
             {timerPaused && <span style={{ marginLeft: '10px', fontSize: '0.8rem', color: '#ffa500' }}>⏸️ Paused</span>}
           </div>
-          {!solved && (
+          {!solved && !isChecking && (
             <button
               className="btn-complete"
               onClick={() => {
-                if (solved) return; // No hacer nada si ya está resuelto
+                // CRÍTICO: Prevenir clics si ya está resuelto o se está verificando
+                if (solved || isChecking) return;
                 setTimerPaused(true);
-                // Verificar solución cuando se marca como completado (solo si no está resuelto)
-                if (!solved) {
-                  checkSolution(pieces);
-                }
+                // Verificar solución cuando se marca como completado
+                checkSolution(pieces);
               }}
               style={{
                 padding: '0.5rem 1rem',

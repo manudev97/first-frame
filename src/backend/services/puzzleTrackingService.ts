@@ -92,4 +92,20 @@ export async function getPuzzleCompletionsByUser(telegramUserId: number): Promis
   return completions.filter((c) => c.telegramUserId === telegramUserId);
 }
 
+/**
+ * Verificar si un usuario ya completó un puzzle específico
+ */
+export async function hasCompletedPuzzle(
+  telegramUserId: number,
+  ipId: string,
+  puzzleId: string
+): Promise<boolean> {
+  const completions = await loadPuzzleCompletions();
+  return completions.some(
+    (c) => c.telegramUserId === telegramUserId && 
+           c.ipId.toLowerCase() === ipId.toLowerCase() && 
+           c.puzzleId === puzzleId
+  );
+}
+
 

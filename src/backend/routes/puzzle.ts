@@ -75,6 +75,28 @@ router.post('/validate', async (req, res) => {
       }
     }
     
+    // CRÍTICO: Verificar si este usuario ya completó este puzzle para prevenir duplicados
+    let alreadyCompleted = false;
+    try {
+      const { hasCompletedPuzzle } = await import('../services/puzzleTrackingService');
+      alreadyCompleted = await hasCompletedPuzzle(telegramUserId, ipId, puzzleId);
+      if (alreadyCompleted) {
+        console.log(`⚠️  Usuario ${telegramUserId} ya completó el puzzle ${puzzleId} para IP ${ipId}. Evitando procesamiento duplicado.`);
+        // Retornar éxito pero sin procesar video/regalía
+        return res.json({
+          success: true,
+          message: 'Puzzle already completed',
+          accessGranted: true,
+          alreadyCompleted: true,
+          videoForwarded: false,
+          royaltyCreated: false,
+        });
+      }
+    } catch (trackingError: any) {
+      console.warn('⚠️  No se pudo verificar si el puzzle ya fue completado:', trackingError.message);
+      // Continuar de todas formas - no es crítico
+    }
+    
     const isValid = await validatePuzzleSolution(puzzleId, solution);
     
     console.log(`🔍 Validación del puzzle: ${isValid ? '✅ VÁLIDA' : '❌ INVÁLIDA'}`);

@@ -39,7 +39,7 @@ export async function createIPMetadata(data: Partial<IPMetadata>): Promise<{ met
     title: data.title || 'Untitled',
     description: data.description || '',
     year: data.year,
-    image: data.image, // Usar image (póster de IMDB)
+    image: data.image, // Usar image (póster de IMDB)git push
     videoUrl: data.videoUrl,
     videoSizeMB: data.videoSizeMB,
     videoDurationMinutes: data.videoDurationMinutes,

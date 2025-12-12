@@ -122,7 +122,7 @@ function Marketplace() {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-          placeholder="Buscar película o serie..."
+          placeholder="Looking for a movie or series..."
           className="search-input"
         />
         <button onClick={handleSearch} className="btn-primary">
