@@ -32,14 +32,14 @@ const LoadingFallback = () => (
   }}>
     <div>
       <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎬</div>
-      <p>Cargando FirstFrame...</p>
+      <p>Loading FirstFrame...</p>
     </div>
   </div>
 );
 
 function App() {
   // CRÍTICO: Log para verificar que App se está renderizando
-  console.log('✅ [APP] App component renderizando');
+  console.log('✅ [APP] App component rendering');
   // CRÍTICO: setupInsideIframe también se llama aquí como backup
   // Ya se llama en main.tsx ANTES de React, pero esto asegura que se ejecute
   useEffect(() => {
@@ -53,7 +53,7 @@ function App() {
             const baseUrl = window.location.origin + window.location.pathname;
             currentUrl.searchParams.set('initial-parent-url', encodeURIComponent(baseUrl));
             window.history.replaceState({}, '', currentUrl.toString());
-            console.log('📱 [APP] initial-parent-url agregado a la URL (backup)');
+            console.log('📱 [APP] initial-parent-url added to URL (backup)');
           }
           
           // Verificar si ya se ejecutó en main.tsx
@@ -63,18 +63,18 @@ function App() {
               setupInsideIframe();
               (window as any).__dynamicIframeSetup = true;
               const platform = window.Telegram?.WebApp?.platform;
-              console.log('✅ [APP] Dynamic iframe setup configurado (backup)');
-              console.log('📱 [APP] Plataforma:', platform);
-              console.log('📱 [APP] Es móvil:', platform === 'android' || platform === 'ios');
+              console.log('✅ [APP] Dynamic iframe setup configured (backup)');
+              console.log('📱 [APP] Platform:', platform);
+              console.log('📱 [APP] Is mobile:', platform === 'android' || platform === 'ios');
             } catch (setupError) {
-              console.warn('⚠️ [APP] Error ejecutando setupInsideIframe (no crítico):', setupError);
+              console.warn('⚠️ [APP] Error executing setupInsideIframe (non-critical):', setupError);
               // No bloquear - continuar de todos modos
             }
           } else {
-            console.log('✅ [APP] Dynamic iframe setup ya estaba configurado');
+            console.log('✅ [APP] Dynamic iframe setup already configured');
           }
         } catch (error) {
-          console.warn('⚠️ [APP] Error configurando Dynamic iframe setup (no crítico):', error);
+          console.warn('⚠️ [APP] Error configuring Dynamic iframe setup (non-critical):', error);
           // No bloquear - la app debe cargar de todos modos
         }
       }, 100); // Pequeño delay para no bloquear el render inicial

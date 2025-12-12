@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/logo.png" />
@@ -11,7 +11,7 @@
     <!-- CRÍTICO: CSP para permitir iframe de Dynamic en Telegram Mini App -->
     <!-- Específicamente permitir app.dynamicauth.com para el sandbox -->
     <meta http-equiv="Content-Security-Policy" content="frame-src 'self' https://app.dynamicauth.com https://*.dynamicauth.com *; connect-src 'self' https://app.dynamicauth.com https://*.dynamicauth.com https://*.dynamic.xyz * wss://* ws://*; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://telegram.org *; style-src 'self' 'unsafe-inline' *; img-src * data: blob:; font-src *;">
-    <title>FirstFrame - Protección de IP</title>
+    <title>FirstFrame - IP Protection</title>
     <!-- Telegram WebApp SDK - Cargar antes de React para mejor rendimiento -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <!-- Preload crítico para mejor rendimiento en móviles -->
@@ -49,7 +49,7 @@
       <div class="initial-loading">
         <div>
           <div style="font-size: 3rem; margin-bottom: 1rem;">🎬</div>
-          <p>Cargando FirstFrame...</p>
+          <p>Loading FirstFrame...</p>
         </div>
       </div>
     </div>
