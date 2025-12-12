@@ -444,31 +444,35 @@ router.post('/validate', async (req, res) => {
             
             // 4. Reenviar video al usuario directamente usando videoFileId
             // IMPORTANTE: Usar protect_content: true para desactivar reenvío hasta que se pague
-            try {
-              
-              // CRÍTICO: Usar sendVideo con protect_content: true para enviar UNA SOLA VEZ sin opción de reenvío
-              // Priorizar videoFileId si está disponible, sino intentar obtenerlo del canal
-              if (ip.videoFileId) {
-                // PRIORIDAD 1: Usar videoFileId directamente (más confiable)
-                console.log(`📤 Enviando video usando videoFileId: ${ip.videoFileId.substring(0, 20)}...`);
-                console.log(`   - Usuario: ${telegramUserId}`);
-                console.log(`   - Token ID correcto: ${correctTokenId || 'N/A'}`);
-                console.log(`   - Título correcto: ${correctTitle || 'N/A'}`);
-                console.log(`   - Caption length: ${fullCaption.length} caracteres`);
-                console.log(`   - protect_content: true (sin opción de reenvío)`);
+            // CRÍTICO: Verificar que el video NO se haya enviado ya (prevenir duplicados)
+            if (!videoForwarded) {
+              try {
                 
-                await bot.telegram.sendVideo(
-                  telegramUserId,
-                  ip.videoFileId,
-                  {
-                    caption: fullCaption,
-                    protect_content: true, // CRÍTICO: Sin opción de reenvío hasta que se pague la regalía
-                  }
-                );
-                
-                videoForwarded = true;
-                console.log(`✅ Video enviado exitosamente UNA VEZ con protect_content: true`);
-              } else if (ip.channelMessageId) {
+                // CRÍTICO: Usar sendVideo con protect_content: true para enviar UNA SOLA VEZ sin opción de reenvío
+                // Priorizar videoFileId si está disponible, sino intentar obtenerlo del canal
+                if (ip.videoFileId) {
+                  // PRIORIDAD 1: Usar videoFileId directamente (más confiable)
+                  console.log(`📤 Enviando video usando videoFileId: ${ip.videoFileId.substring(0, 20)}...`);
+                  console.log(`   - Usuario: ${telegramUserId}`);
+                  console.log(`   - Token ID correcto: ${correctTokenId || 'N/A'}`);
+                  console.log(`   - Título correcto: ${correctTitle || 'N/A'}`);
+                  console.log(`   - Caption length: ${fullCaption.length} caracteres`);
+                  console.log(`   - protect_content: true (sin opción de reenvío)`);
+                  console.log(`   - videoForwarded antes: ${videoForwarded} (verificando duplicados)`);
+                  
+                  await bot.telegram.sendVideo(
+                    telegramUserId,
+                    ip.videoFileId,
+                    {
+                      caption: fullCaption,
+                      protect_content: true, // CRÍTICO: Sin opción de reenvío hasta que se pague la regalía
+                    }
+                  );
+                  
+                  videoForwarded = true;
+                  console.log(`✅ Video enviado exitosamente UNA VEZ con protect_content: true`);
+                  console.log(`   - videoForwarded después: ${videoForwarded} (marcado como enviado)`);
+                } else if (ip.channelMessageId) {
                 // PRIORIDAD 2: Si solo tenemos channelMessageId, intentar obtener videoFileId del canal
                 // NOTA: Telegram Bot API no permite obtener mensajes de canales directamente
                 // Por lo tanto, debemos confiar en que el videoFileId esté guardado en el registry

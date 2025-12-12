@@ -596,14 +596,14 @@ function Profile() {
                             borderRadius: '8px',
                             fontSize: '0.9rem'
                           }}>
-                            <p style={{ marginBottom: '0.75rem', fontWeight: 600 }}>
-                              <strong>🎬 Video:</strong> {royalty.videoTitle}
+                            <p style={{ marginBottom: '0.75rem', fontWeight: 600, color: '#000' }}>
+                              <strong style={{ color: '#000' }}>🎬 Video:</strong> <span style={{ color: '#000' }}>{royalty.videoTitle}</span>
                             </p>
-                            <p style={{ marginBottom: '0.75rem' }}>
-                              <strong>💰 Monto:</strong> {paymentInfo.amount} {paymentInfo.currency}
+                            <p style={{ marginBottom: '0.75rem', color: '#000' }}>
+                              <strong style={{ color: '#000' }}>💰 Monto:</strong> <span style={{ color: '#000' }}>{paymentInfo.amount} {paymentInfo.currency}</span>
                             </p>
                             <div style={{ marginBottom: '0.75rem' }}>
-                              <strong>📤 Dirección del destinatario:</strong>
+                              <strong style={{ color: '#000' }}>📤 Dirección del destinatario:</strong>
                               <div style={{ 
                                 display: 'flex', 
                                 alignItems: 'center', 
