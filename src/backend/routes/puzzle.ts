@@ -181,73 +181,135 @@ router.post('/validate', async (req, res) => {
           const tokenId = req.body.tokenId; // TokenId puede venir en el request
           const requestTitle = req.body.title; // Título del request (más confiable que el del registry)
           
-          if (tokenId) {
-            console.log(`🔍 Buscando IP por tokenId: ${tokenId} (PRIORIDAD ALTA)`);
-            const { getIPByTokenId } = await import('../services/ipRegistry');
-            ip = await getIPByTokenId(tokenId.toString());
-            if (ip) {
-              console.log(`✅ IP encontrado por tokenId ${tokenId}: ${ip.title} (IP ID: ${ip.ipId}, Token ID: ${ip.tokenId})`);
-              // CRÍTICO: Actualizar el ipId correcto al del IP encontrado
-              correctIpId = ip.ipId;
-            } else {
-              console.warn(`⚠️  No se encontró IP con tokenId ${tokenId} en el registry`);
-            }
-          }
-          
-          // PRIORIDAD 2: Si no encontramos por tokenId, buscar por título del REQUEST (más confiable)
-          // CRÍTICO: NO buscar por ipId aquí porque puede encontrar el IP incorrecto (mismo contrato, diferente tokenId)
-          if (!ip && requestTitle) {
-            console.log(`🔍 Buscando IP por título del REQUEST: "${requestTitle}" (PRIORIDAD ALTA - más confiable que ipId)`);
-            const allIPs = await loadRegisteredIPs();
-            // Buscar IPs que coincidan con el título del request
-            const matchingIPs = allIPs.filter((i) => {
-              const titleMatch = i.title?.toLowerCase().trim() === requestTitle.toLowerCase().trim() ||
-                                 i.title?.toLowerCase().trim().includes(requestTitle.toLowerCase().trim()) ||
-                                 requestTitle.toLowerCase().trim().includes(i.title?.toLowerCase().trim() || '');
-              return titleMatch;
-            });
+          // CRÍTICO: Obtener instancia del bot ANTES de usarla
+          let bot;
+          try {
+            const botModule = await import('../../bot/index');
+            bot = botModule.bot;
             
-            if (matchingIPs.length > 0) {
-              // CRÍTICO: Si tenemos tokenId, priorizar IPs que coincidan con el tokenId
+            if (!bot) {
+              throw new Error('Bot instance is null or undefined');
+            }
+            
+            if (!bot.telegram) {
+              throw new Error('Bot telegram client is not initialized');
+            }
+          } catch (botError: any) {
+            console.error(`❌ ERROR CRÍTICO: No se pudo obtener la instancia del bot:`, botError);
+            bot = null;
+          }
+          
+          // CRÍTICO: Usar función mejorada que busca por tokenId o título
+          const { findVideoInChannelByTokenIdOrTitle } = await import('../services/channelVideoService');
+          const channelId = process.env.TELEGRAM_CHANNEL_ID || process.env.TELEGRAM_CHANNEL_LINK;
+          
+          if ((tokenId || requestTitle) && bot) {
+            console.log(`🔍 Buscando video en canal por tokenId: ${tokenId || 'N/A'}, título: ${requestTitle || 'N/A'}`);
+            const videoResult = await findVideoInChannelByTokenIdOrTitle(
+              bot,
+              channelId || '',
+              tokenId?.toString(),
+              requestTitle,
+              ipId
+            );
+            
+            if (videoResult) {
+              // CRÍTICO: Si encontramos el video, buscar el IP completo en el registry
+              const { getIPByTokenId, loadRegisteredIPs } = await import('../services/ipRegistry');
+              
+              // Intentar obtener el IP completo usando el tokenId o ipId del video encontrado
               if (tokenId) {
-                const tokenMatch = matchingIPs.find((i) => 
-                  i.tokenId === tokenId.toString() || 
-                  i.tokenId === tokenId ||
-                  (i.tokenId && i.tokenId.toString() === tokenId.toString())
-                );
-                if (tokenMatch) {
-                  ip = tokenMatch;
-                  console.log(`✅ IP encontrado por título del REQUEST y tokenId "${requestTitle}" (tokenId: ${tokenId}): ${ip.title} (IP ID: ${ip.ipId})`);
-                  correctIpId = ip.ipId;
-                }
+                ip = await getIPByTokenId(tokenId.toString());
               }
-              // Si no encontramos por tokenId, priorizar IPs que tienen video
-              if (!ip) {
-                ip = matchingIPs.find((i) => i.videoFileId || i.channelMessageId) || matchingIPs[0];
-                if (ip) {
-                  console.log(`✅ IP encontrado por título del REQUEST "${requestTitle}": ${ip.title} (IP ID: ${ip.ipId}, Token ID: ${ip.tokenId || 'N/A'})`);
-                  correctIpId = ip.ipId;
-                }
+              
+              // Si no encontramos por tokenId, buscar por ipId del video encontrado
+              if (!ip && videoResult.ipId) {
+                ip = await getIPById(videoResult.ipId);
               }
-            } else {
-              console.warn(`⚠️  No se encontró IP con título "${requestTitle}" en el registry`);
+              
+              // Si aún no encontramos, crear un objeto IP mínimo con la información del video
+              if (!ip && videoResult.fileId) {
+                console.log(`⚠️  IP no encontrado en registry, pero video encontrado. Creando objeto IP mínimo.`);
+                ip = {
+                  ipId: videoResult.ipId || ipId,
+                  tokenId: tokenId?.toString(),
+                  title: requestTitle || 'Video sin título',
+                  videoFileId: videoResult.fileId,
+                  channelMessageId: videoResult.messageId || undefined,
+                };
+                correctIpId = videoResult.ipId || ipId;
+                console.log(`✅ Video encontrado en canal (IP mínimo creado): ${ip.title} (Token ID: ${ip.tokenId || 'N/A'})`);
+              } else if (ip) {
+                // Actualizar con información del video si falta
+                if (!ip.videoFileId && videoResult.fileId) {
+                  ip.videoFileId = videoResult.fileId;
+                }
+                if (!ip.channelMessageId && videoResult.messageId) {
+                  ip.channelMessageId = videoResult.messageId;
+                }
+                correctIpId = ip.ipId;
+                console.log(`✅ IP encontrado y actualizado con información del video: ${ip.title} (Token ID: ${ip.tokenId || 'N/A'})`);
+              }
             }
           }
           
-          // PRIORIDAD 3: Si aún no encontramos, buscar por ipId (último recurso - puede ser incorrecto)
-          // CRÍTICO: Solo usar esto si no tenemos tokenId ni título, porque puede encontrar el IP incorrecto
-          if (!ip && !tokenId && !requestTitle) {
-            console.log(`🔍 Buscando IP por ipId: ${ipId} (ÚLTIMO RECURSO - puede ser incorrecto si hay múltiples IPs con el mismo contrato)`);
-            ip = await getIPById(ipId);
-            if (ip) {
-              console.log(`✅ IP encontrado por ipId: ${ip.title} (Token ID: ${ip.tokenId || 'N/A'})`);
-              // CRÍTICO: Advertir si el tokenId no coincide
-              if (tokenId && ip.tokenId && ip.tokenId.toString() !== tokenId.toString()) {
-                console.warn(`⚠️  ADVERTENCIA: El IP encontrado por ipId tiene tokenId ${ip.tokenId}, pero se buscó ${tokenId}. Este puede ser un IP incorrecto.`);
+          // PRIORIDAD 2: Si aún no encontramos, buscar en el registry de forma tradicional
+          if (!ip) {
+            if (tokenId) {
+              console.log(`🔍 Buscando IP por tokenId en registry: ${tokenId} (PRIORIDAD ALTA)`);
+              const { getIPByTokenId } = await import('../services/ipRegistry');
+              ip = await getIPByTokenId(tokenId.toString());
+              if (ip) {
+                console.log(`✅ IP encontrado por tokenId ${tokenId}: ${ip.title} (IP ID: ${ip.ipId}, Token ID: ${ip.tokenId})`);
+                correctIpId = ip.ipId;
+              } else {
+                console.warn(`⚠️  No se encontró IP con tokenId ${tokenId} en el registry`);
               }
             }
-          } else if (!ip && (tokenId || requestTitle)) {
-            console.warn(`⚠️  No se usó búsqueda por ipId porque puede encontrar el IP incorrecto. TokenId: ${tokenId || 'N/A'}, Título: ${requestTitle || 'N/A'}`);
+            
+            // PRIORIDAD 3: Buscar por título del REQUEST
+            if (!ip && requestTitle) {
+              console.log(`🔍 Buscando IP por título del REQUEST: "${requestTitle}" (PRIORIDAD ALTA)`);
+              const allIPs = await loadRegisteredIPs();
+              const matchingIPs = allIPs.filter((i) => {
+                const titleMatch = i.title?.toLowerCase().trim() === requestTitle.toLowerCase().trim() ||
+                                   i.title?.toLowerCase().trim().includes(requestTitle.toLowerCase().trim()) ||
+                                   requestTitle.toLowerCase().trim().includes(i.title?.toLowerCase().trim() || '');
+                return titleMatch;
+              });
+              
+              if (matchingIPs.length > 0) {
+                if (tokenId) {
+                  const tokenMatch = matchingIPs.find((i) => 
+                    i.tokenId === tokenId.toString() || 
+                    i.tokenId === tokenId ||
+                    (i.tokenId && i.tokenId.toString() === tokenId.toString())
+                  );
+                  if (tokenMatch) {
+                    ip = tokenMatch;
+                    console.log(`✅ IP encontrado por título y tokenId "${requestTitle}" (tokenId: ${tokenId}): ${ip.title}`);
+                    correctIpId = ip.ipId;
+                  }
+                }
+                if (!ip) {
+                  ip = matchingIPs.find((i) => i.videoFileId || i.channelMessageId) || matchingIPs[0];
+                  if (ip) {
+                    console.log(`✅ IP encontrado por título "${requestTitle}": ${ip.title} (Token ID: ${ip.tokenId || 'N/A'})`);
+                    correctIpId = ip.ipId;
+                  }
+                }
+              }
+            }
+            
+            // PRIORIDAD 4: Buscar por ipId (último recurso)
+            if (!ip) {
+              console.log(`🔍 Buscando IP por ipId: ${ipId} (ÚLTIMO RECURSO)`);
+              ip = await getIPById(ipId);
+              if (ip) {
+                console.log(`✅ IP encontrado por ipId: ${ip.title} (Token ID: ${ip.tokenId || 'N/A'})`);
+                correctIpId = ip.ipId;
+              }
+            }
           }
           
           console.log(`📊 IP obtenido del registry:`, ip ? {
@@ -287,27 +349,13 @@ router.post('/validate', async (req, res) => {
           if (ip && (ip.videoFileId || ip.channelMessageId)) {
             console.log(`✅ IP tiene video disponible (videoFileId: ${!!ip.videoFileId}, channelMessageId: ${ip.channelMessageId || 'N/A'})`);
             
-            // 2. Obtener instancia del bot - CRÍTICO: Verificar que esté disponible
-            let bot;
-            try {
-              const botModule = await import('../../bot/index');
-              bot = botModule.bot;
-              
-              if (!bot) {
-                throw new Error('Bot instance is null or undefined');
-              }
-              
-              // Verificar que el bot esté inicializado
-              if (!bot.telegram) {
-                throw new Error('Bot telegram client is not initialized');
-              }
-              
-              console.log(`✅ Bot instance obtenida y verificada`);
-            } catch (botError: any) {
-              console.error(`❌ ERROR CRÍTICO: No se pudo obtener o verificar la instancia del bot:`, botError);
-              console.error(`   Esto puede significar que el bot no está inicializado correctamente`);
-              throw new Error(`Bot no disponible: ${botError.message}`);
+            // 2. Verificar que el bot esté disponible (ya se obtuvo antes)
+            if (!bot) {
+              console.error(`❌ ERROR CRÍTICO: Bot no disponible para enviar video`);
+              throw new Error('Bot no disponible');
             }
+            
+            console.log(`✅ Bot instance verificada y lista para enviar video`);
             
             // 3. Reenviar video al usuario directamente usando videoFileId o channelMessageId
             // IMPORTANTE: Usar protect_content: true para desactivar reenvío hasta que se pague

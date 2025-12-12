@@ -73,6 +73,104 @@ export async function findVideoInChannelByIPName(
 }
 
 /**
+ * Busca un video en el canal por tokenId o título en el caption
+ * IMPORTANTE: Telegram Bot API no permite buscar mensajes directamente
+ * Esta función busca en el registry y luego intenta buscar en el canal si el bot es admin
+ */
+export async function findVideoInChannelByTokenIdOrTitle(
+  bot: Telegraf,
+  channelId: string | number,
+  tokenId?: string,
+  title?: string,
+  ipId?: string
+): Promise<{ fileId: string; messageId: number; caption?: string; ipId: string } | null> {
+  try {
+    console.log(`🔍 Buscando video en canal por tokenId: ${tokenId || 'N/A'}, título: ${title || 'N/A'}`);
+    
+    // 1. Buscar en el registry por tokenId (más preciso)
+    const allIPs = await loadRegisteredIPs();
+    
+    let matchingIP: any = null;
+    
+    // PRIORIDAD 1: Buscar por tokenId exacto
+    if (tokenId) {
+      matchingIP = allIPs.find(ip => 
+        ip.tokenId === tokenId || 
+        ip.tokenId === tokenId.toString() ||
+        (ip.tokenId && ip.tokenId.toString() === tokenId.toString())
+      );
+      
+      if (matchingIP && (matchingIP.channelMessageId || matchingIP.videoFileId)) {
+        console.log(`✅ Video encontrado en registry por tokenId ${tokenId}: ${matchingIP.title}`);
+        return {
+          fileId: matchingIP.videoFileId!,
+          messageId: matchingIP.channelMessageId || 0,
+          caption: `🎬 ${matchingIP.title}${matchingIP.year ? ` (${matchingIP.year})` : ''}`,
+          ipId: matchingIP.ipId,
+        };
+      }
+    }
+    
+    // PRIORIDAD 2: Buscar por título
+    if (!matchingIP && title) {
+      const titleMatches = allIPs.filter(ip => {
+        const titleMatch = ip.title?.toLowerCase().trim() === title.toLowerCase().trim() ||
+                          ip.title?.toLowerCase().trim().includes(title.toLowerCase().trim()) ||
+                          title.toLowerCase().trim().includes(ip.title?.toLowerCase().trim() || '');
+        return titleMatch;
+      });
+      
+      // Priorizar IPs que tienen video y coinciden con tokenId si está disponible
+      if (tokenId) {
+        matchingIP = titleMatches.find(ip => 
+          (ip.tokenId === tokenId || ip.tokenId === tokenId.toString()) &&
+          (ip.channelMessageId || ip.videoFileId)
+        );
+      }
+      
+      // Si no encontramos por tokenId, usar el primero que tenga video
+      if (!matchingIP) {
+        matchingIP = titleMatches.find(ip => ip.channelMessageId || ip.videoFileId);
+      }
+      
+      if (matchingIP && (matchingIP.channelMessageId || matchingIP.videoFileId)) {
+        console.log(`✅ Video encontrado en registry por título "${title}": ${matchingIP.title} (Token ID: ${matchingIP.tokenId || 'N/A'})`);
+        return {
+          fileId: matchingIP.videoFileId!,
+          messageId: matchingIP.channelMessageId || 0,
+          caption: `🎬 ${matchingIP.title}${matchingIP.year ? ` (${matchingIP.year})` : ''}`,
+          ipId: matchingIP.ipId,
+        };
+      }
+    }
+    
+    // PRIORIDAD 3: Buscar por ipId (último recurso)
+    if (!matchingIP && ipId) {
+      matchingIP = allIPs.find(ip => 
+        ip.ipId?.toLowerCase() === ipId.toLowerCase() &&
+        (ip.channelMessageId || ip.videoFileId)
+      );
+      
+      if (matchingIP && (matchingIP.channelMessageId || matchingIP.videoFileId)) {
+        console.log(`✅ Video encontrado en registry por ipId ${ipId}: ${matchingIP.title} (Token ID: ${matchingIP.tokenId || 'N/A'})`);
+        return {
+          fileId: matchingIP.videoFileId!,
+          messageId: matchingIP.channelMessageId || 0,
+          caption: `🎬 ${matchingIP.title}${matchingIP.year ? ` (${matchingIP.year})` : ''}`,
+          ipId: matchingIP.ipId,
+        };
+      }
+    }
+    
+    console.warn(`⚠️  No se encontró video en registry para tokenId: ${tokenId || 'N/A'}, título: ${title || 'N/A'}`);
+    return null;
+  } catch (error: any) {
+    console.error('Error buscando video en canal por tokenId/título:', error);
+    return null;
+  }
+}
+
+/**
  * Busca un video en el canal por IP ID o tokenId
  * Retorna el file_id del video y el message_id del canal
  */
