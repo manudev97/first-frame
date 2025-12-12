@@ -213,31 +213,20 @@ export async function saveRegisteredIP(ip: RegisteredIP): Promise<void> {
     // 6. Asegurar que el directorio existe una vez más antes de escribir (por si acaso)
     await ensureDataDir();
     
-    // 7. Verificar que el directorio existe antes de escribir el archivo temporal
-    const dataDir = path.dirname(REGISTRY_FILE);
-    try {
-      await fs.access(dataDir);
-    } catch {
-      // Si no existe, crearlo con recursive: true
-      await fs.mkdir(dataDir, { recursive: true });
-      // Verificar nuevamente que se creó correctamente
-      await fs.access(dataDir);
-    }
-    
-    // 8. Escribir al archivo temporal primero
+    // 7. Escribir al archivo temporal primero
     await fs.writeFile(tempFile, jsonContent, 'utf-8');
     
-    // 9. Verificar que el archivo temporal se escribió correctamente
+    // 8. Verificar que el archivo temporal se escribió correctamente
     try {
       await fs.access(tempFile);
     } catch {
       throw new Error('No se pudo escribir el archivo temporal');
     }
     
-    // 10. Asegurar que el directorio existe antes de renombrar
+    // 9. Asegurar que el directorio existe antes de renombrar
     await ensureDataDir();
     
-    // 11. Reemplazar el archivo original con el temporal (operación atómica)
+    // 10. Reemplazar el archivo original con el temporal (operación atómica)
     await fs.rename(tempFile, REGISTRY_FILE);
     
     console.log(`✅ IP guardado en marketplace: ${ip.ipId}${ip.tokenId ? ` (Token ID: ${ip.tokenId})` : ''} - ${ip.title} (uploader: ${ip.uploader || 'N/A'})`);
