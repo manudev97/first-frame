@@ -130,6 +130,12 @@ function Puzzle() {
       return;
     }
     
+    // CRÍTICO: Prevenir múltiples llamadas si ya está resuelto
+    if (solved) {
+      console.log('⚠️  Puzzle ya está resuelto, ignorando llamada duplicada a checkSolution');
+      return;
+    }
+    
     const solution = currentPieces.map((p) => p.id);
     const urlParams = new URLSearchParams(window.location.search);
     const ipId = urlParams.get('ipId');
@@ -291,9 +297,12 @@ function Puzzle() {
             <button
               className="btn-complete"
               onClick={() => {
+                if (solved) return; // No hacer nada si ya está resuelto
                 setTimerPaused(true);
-                // Verificar solución cuando se marca como completado
-                checkSolution(pieces);
+                // Verificar solución cuando se marca como completado (solo si no está resuelto)
+                if (!solved) {
+                  checkSolution(pieces);
+                }
               }}
               style={{
                 padding: '0.5rem 1rem',

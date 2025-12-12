@@ -153,7 +153,7 @@ router.get('/pay-info/:royaltyId', async (req, res) => {
         recipientAddress: uploaderWallet,
         amount: royalty.amount,
         tokenAddress: tokenAddress,
-        currency: 'MockERC20',
+        currency: 'IP', // CRÍTICO: Mostrar "IP" en lugar de "MockERC20"
       },
     });
   } catch (error: any) {
