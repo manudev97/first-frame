@@ -53,19 +53,63 @@ export async function saveRegisteredIP(ip: RegisteredIP): Promise<void> {
     await ensureDataDir();
     const ips = await loadRegisteredIPs();
     
-    // Evitar duplicados por IP ID
-    const existingIndex = ips.findIndex((existing) => existing.ipId.toLowerCase() === ip.ipId.toLowerCase());
+    // CRÍTICO: Buscar duplicados por tokenId si está disponible (más preciso)
+    // Si no hay tokenId, buscar por ipId + título como fallback
+    let existingIndex = -1;
+    
+    if (ip.tokenId) {
+      // PRIORIDAD 1: Buscar por tokenId (clave única)
+      existingIndex = ips.findIndex((existing) => 
+        existing.tokenId === ip.tokenId || 
+        existing.tokenId === ip.tokenId.toString() ||
+        (existing.tokenId && existing.tokenId.toString() === ip.tokenId.toString())
+      );
+      if (existingIndex !== -1) {
+        console.log(`✅ IP encontrado por tokenId ${ip.tokenId}, actualizando...`);
+      }
+    }
+    
+    // PRIORIDAD 2: Si no se encontró por tokenId, buscar por ipId + título
+    if (existingIndex === -1 && ip.title) {
+      existingIndex = ips.findIndex((existing) => 
+        existing.ipId.toLowerCase() === ip.ipId.toLowerCase() &&
+        existing.title?.toLowerCase().trim() === ip.title.toLowerCase().trim()
+      );
+      if (existingIndex !== -1) {
+        console.log(`✅ IP encontrado por ipId + título "${ip.title}", actualizando...`);
+      }
+    }
+    
+    // PRIORIDAD 3: Si aún no se encontró, buscar solo por ipId (último recurso)
+    if (existingIndex === -1) {
+      existingIndex = ips.findIndex((existing) => existing.ipId.toLowerCase() === ip.ipId.toLowerCase());
+      if (existingIndex !== -1) {
+        console.warn(`⚠️  IP ${ip.ipId} encontrado solo por ipId (sin tokenId ni título único), actualizando...`);
+        console.warn(`   Esto puede sobrescribir un IP diferente con el mismo contrato. TokenId del existente: ${ips[existingIndex].tokenId || 'N/A'}, TokenId del nuevo: ${ip.tokenId || 'N/A'}`);
+      }
+    }
+    
     if (existingIndex !== -1) {
-      console.warn(`⚠️  IP ${ip.ipId} ya está registrado, actualizando...`);
-      // Actualizar el IP existente con nueva información
-      ips[existingIndex] = { ...ips[existingIndex], ...ip };
+      // Actualizar el IP existente con nueva información, preservando tokenId si el nuevo no lo tiene
+      const existing = ips[existingIndex];
+      ips[existingIndex] = { 
+        ...existing, 
+        ...ip,
+        // CRÍTICO: Preservar tokenId del existente si el nuevo no lo tiene
+        tokenId: ip.tokenId || existing.tokenId,
+        // Preservar información del canal si existe
+        channelMessageId: ip.channelMessageId || existing.channelMessageId,
+        videoFileId: ip.videoFileId || existing.videoFileId,
+      };
+      console.log(`✅ IP actualizado: ${ip.ipId}${ip.tokenId ? ` (Token ID: ${ip.tokenId})` : ''} - ${ip.title}`);
     } else {
       // Agregar nuevo IP
       ips.push(ip);
+      console.log(`✅ IP nuevo agregado: ${ip.ipId}${ip.tokenId ? ` (Token ID: ${ip.tokenId})` : ''} - ${ip.title}`);
     }
     
     await fs.writeFile(REGISTRY_FILE, JSON.stringify(ips, null, 2), 'utf-8');
-    console.log(`✅ IP guardado en marketplace: ${ip.ipId} - ${ip.title} (uploader: ${ip.uploader || 'N/A'})`);
+    console.log(`✅ IP guardado en marketplace: ${ip.ipId}${ip.tokenId ? ` (Token ID: ${ip.tokenId})` : ''} - ${ip.title} (uploader: ${ip.uploader || 'N/A'})`);
   } catch (error) {
     console.error('❌ Error guardando IP registrado:', error);
     // No lanzar error - el registro puede continuar aunque falle el guardado
