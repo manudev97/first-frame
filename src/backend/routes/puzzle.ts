@@ -520,6 +520,11 @@ router.post('/validate', async (req, res) => {
                 console.log(`   - VideoFileId: ${ip.videoFileId || 'N/A'}`);
                 console.log(`   - ChannelMessageId: ${ip.channelMessageId || 'N/A'}`);
                 
+                // CRÍTICO: Usar correctTokenId del request (más preciso) en lugar de ip.tokenId
+                // El ip.tokenId puede ser incorrecto si el IP fue encontrado por ipId (contrato)
+                const royaltyTokenId = correctTokenId || ip.tokenId;
+                console.log(`💰 Usando tokenId para regalía: ${royaltyTokenId} (del request: ${correctTokenId || 'N/A'}, del IP: ${ip.tokenId || 'N/A'})`);
+                
                 const royalty = await createPendingRoyalty(
                   telegramUserId,
                   finalIpId, // CRÍTICO: Usar el IP ID correcto, no el del contrato
@@ -527,7 +532,7 @@ router.post('/validate', async (req, res) => {
                   '0.1', // Monto fijo de regalía (0.1 IP)
                   uploaderTelegramId,
                   uploaderName, // Usar nombre del registry
-                  ip.tokenId,
+                  royaltyTokenId, // CRÍTICO: Usar tokenId del request (correctTokenId) en lugar de ip.tokenId
                   ip.channelMessageId,
                   ip.videoFileId,
                   fullCaption // CRÍTICO: Guardar caption original para reenviar después del pago
