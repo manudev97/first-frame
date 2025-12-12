@@ -37,7 +37,48 @@ export async function loadRegisteredIPs(): Promise<RegisteredIP[]> {
   try {
     await ensureDataDir();
     const content = await fs.readFile(REGISTRY_FILE, 'utf-8');
-    return JSON.parse(content);
+    
+    // CRÍTICO: Validar que el contenido no esté vacío
+    if (!content || content.trim() === '') {
+      console.warn('⚠️  Archivo de registry está vacío, retornando array vacío');
+      return [];
+    }
+    
+    // CRÍTICO: Intentar parsear el JSON con manejo de errores mejorado
+    try {
+      const parsed = JSON.parse(content);
+      // Validar que sea un array
+      if (!Array.isArray(parsed)) {
+        console.error('❌ El registry no es un array válido, retornando array vacío');
+        return [];
+      }
+      return parsed;
+    } catch (parseError: any) {
+      console.error('❌ Error parseando JSON del registry:', parseError.message);
+      console.error('   Posición del error:', parseError.message.match(/position (\d+)/)?.[1] || 'desconocida');
+      
+      // CRÍTICO: Intentar recuperar el JSON corrupto
+      try {
+        // Intentar leer el archivo de respaldo si existe
+        const backupFile = REGISTRY_FILE + '.backup';
+        const backupContent = await fs.readFile(backupFile, 'utf-8');
+        if (backupContent && backupContent.trim() !== '') {
+          const backupParsed = JSON.parse(backupContent);
+          if (Array.isArray(backupParsed)) {
+            console.log('✅ Recuperado desde archivo de respaldo');
+            // Restaurar desde el backup
+            await fs.writeFile(REGISTRY_FILE, JSON.stringify(backupParsed, null, 2), 'utf-8');
+            return backupParsed;
+          }
+        }
+      } catch (backupError) {
+        console.warn('⚠️  No se pudo recuperar desde backup:', backupError);
+      }
+      
+      // Si no se puede recuperar, retornar array vacío
+      console.warn('⚠️  Retornando array vacío debido a JSON corrupto');
+      return [];
+    }
   } catch (error: any) {
     if (error.code === 'ENOENT') {
       return [];
@@ -109,10 +150,46 @@ export async function saveRegisteredIP(ip: RegisteredIP): Promise<void> {
       console.log(`✅ IP nuevo agregado: ${ip.ipId}${ip.tokenId ? ` (Token ID: ${ip.tokenId})` : ''} - ${ip.title}`);
     }
     
-    await fs.writeFile(REGISTRY_FILE, JSON.stringify(ips, null, 2), 'utf-8');
+    // CRÍTICO: Escribir de forma atómica para evitar corrupción del archivo
+    // 1. Crear archivo temporal
+    const tempFile = REGISTRY_FILE + '.tmp';
+    const jsonContent = JSON.stringify(ips, null, 2);
+    
+    // 2. Crear backup antes de escribir
+    try {
+      const currentContent = await fs.readFile(REGISTRY_FILE, 'utf-8').catch(() => '[]');
+      if (currentContent && currentContent.trim() !== '') {
+        const backupFile = REGISTRY_FILE + '.backup';
+        await fs.writeFile(backupFile, currentContent, 'utf-8');
+      }
+    } catch (backupError) {
+      // No crítico si falla el backup
+      console.warn('⚠️  No se pudo crear backup:', backupError);
+    }
+    
+    // 3. Escribir al archivo temporal primero
+    await fs.writeFile(tempFile, jsonContent, 'utf-8');
+    
+    // 4. Validar que el archivo temporal es JSON válido
+    try {
+      const validationContent = await fs.readFile(tempFile, 'utf-8');
+      JSON.parse(validationContent);
+    } catch (validationError) {
+      // Si el archivo temporal es inválido, no reemplazar el original
+      await fs.unlink(tempFile).catch(() => {});
+      throw new Error('JSON generado es inválido');
+    }
+    
+    // 5. Reemplazar el archivo original con el temporal (operación atómica)
+    await fs.rename(tempFile, REGISTRY_FILE);
+    
     console.log(`✅ IP guardado en marketplace: ${ip.ipId}${ip.tokenId ? ` (Token ID: ${ip.tokenId})` : ''} - ${ip.title} (uploader: ${ip.uploader || 'N/A'})`);
   } catch (error) {
     console.error('❌ Error guardando IP registrado:', error);
+    // Limpiar archivo temporal si existe
+    try {
+      await fs.unlink(REGISTRY_FILE + '.tmp').catch(() => {});
+    } catch {}
     // No lanzar error - el registro puede continuar aunque falle el guardado
     throw error; // Pero lanzar para que el backend sepa que falló
   }
