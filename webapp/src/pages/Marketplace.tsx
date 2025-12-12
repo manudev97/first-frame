@@ -10,6 +10,7 @@ const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 
 
 interface IPAsset {
   ipId: string;
+  tokenId?: string; // CRÍTICO: Token ID para identificar el IP correcto cuando ipId es el contrato
   title: string;
   year?: number;
   posterUrl?: string;
