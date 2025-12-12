@@ -330,31 +330,43 @@ router.post('/register-license', async (req, res) => {
       console.log('✅ Currency token válido detectado:', currency);
     }
     
-    // Log de los valores finales que se enviarán al SDK
-    console.log('📋 Valores finales para registerPILTerms:');
-    console.log(`   - commercialRevShare: ${finalCommercialRevShare}`);
-    console.log(`   - commercialUse: ${finalCommercialUse}`);
-    console.log(`   - currency: ${hasValidCurrency ? currency : '0x0000...0000'}`);
-    
-    // CRÍTICO: Si el SDK sigue lanzando el error incluso con commercialRevShare=0 y commercialUse=false,
-    // puede ser que el SDK valide el campo currency incluso cuando no se necesita.
-    // Solución: Si no hay currency token y no hay regalías comerciales, usar un currency token "zero" válido
-    // O mejor aún, verificar si podemos omitir completamente el registro de licencia si no hay regalías
-    
-    // CRÍTICO: El SDK requiere un currency token válido incluso sin regalías comerciales
+    // CRÍTICO: El SDK requiere un currency token válido para regalías comerciales
     // Usar MockERC20 token address como currency por defecto
     const { getRoyaltyTokenAddress } = await import('../services/tokenBalanceService');
     const mockTokenAddress = getRoyaltyTokenAddress();
     const finalCurrency = hasValidCurrency ? currency : mockTokenAddress;
+    
+    // CRÍTICO: Si el usuario quiere IPs comercializables, establecer commercialUse=true
+    // y usar MockERC20 como currency token
+    // Si no hay currency token válido original, pero queremos comercializables, usar MockERC20
+    if (!hasValidCurrency && (originalCommercialUse || originalCommercialRevShare > 0)) {
+      // El usuario quiere comercializables pero no proporcionó currency, usar MockERC20
+      console.log('✅ Usando MockERC20 como currency token para IPs comercializables');
+      finalCommercialRevShare = originalCommercialRevShare || 0;
+      finalCommercialUse = true; // Permitir uso comercial
+    }
+    
+    // CRÍTICO: commercialAttribution solo puede ser true si commercialUse es true
+    // Si commercialUse es false, forzar commercialAttribution a false
+    const finalCommercialAttribution = finalCommercialUse 
+      ? (licenseTerms.commercialAttribution ?? false)
+      : false;
+    
+    // Log de los valores finales que se enviarán al SDK
+    console.log('📋 Valores finales para registerPILTerms:');
+    console.log(`   - commercialRevShare: ${finalCommercialRevShare}`);
+    console.log(`   - commercialUse: ${finalCommercialUse}`);
+    console.log(`   - commercialAttribution: ${finalCommercialAttribution} (${finalCommercialUse ? 'habilitado' : 'deshabilitado - commercialUse es false'})`);
+    console.log(`   - currency: ${finalCurrency}`);
     
     // Asegurar que todos los campos numéricos tengan valores válidos (no undefined)
     // El SDK convierte algunos campos a BigInt, por lo que no pueden ser undefined
     try {
       const tx = await client.license.registerPILTerms({
         transferable: licenseTerms.transferable ?? false,
-        commercialRevShare: finalCommercialRevShare, // SIEMPRE 0 si no hay currency
-        commercialUse: finalCommercialUse, // SIEMPRE false si no hay currency
-        commercialAttribution: licenseTerms.commercialAttribution ?? false,
+        commercialRevShare: finalCommercialRevShare,
+        commercialUse: finalCommercialUse,
+        commercialAttribution: finalCommercialAttribution, // CRÍTICO: Solo true si commercialUse es true
         derivativesAllowed: licenseTerms.derivativesAllowed ?? false,
         derivativesAttribution: licenseTerms.derivativesAttribution ?? false,
         derivativesApproval: licenseTerms.derivativesApproval ?? false,

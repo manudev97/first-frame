@@ -117,15 +117,26 @@ router.post('/validate', async (req, res) => {
       let royaltyCreated = false;
       let royaltyId: string | null = null;
       
+      console.log(`🔍 Iniciando lógica de puzzle para IP ${ipId} y usuario ${telegramUserId}`);
+      
       if (ipId && telegramUserId) {
         try {
           // 1. Obtener información del IP del registry
           const { getIPById } = await import('../services/ipRegistry');
           const ip = await getIPById(ipId);
           
+          console.log(`📊 IP obtenido del registry:`, ip ? {
+            ipId: ip.ipId,
+            title: ip.title,
+            hasVideoFileId: !!ip.videoFileId,
+            hasChannelMessageId: !!ip.channelMessageId,
+            uploader: ip.uploader,
+          } : 'null');
+          
           // CRÍTICO: Verificar que el IP tenga videoFileId O channelMessageId
           // Si no tiene videoFileId, intentar obtenerlo del canal usando el caption
           if (ip && (ip.videoFileId || ip.channelMessageId)) {
+            console.log(`✅ IP tiene video disponible (videoFileId: ${!!ip.videoFileId}, channelMessageId: ${ip.channelMessageId || 'N/A'})`);
             // 2. Obtener instancia del bot
             const { bot } = await import('../../bot/index');
             
@@ -247,46 +258,80 @@ router.post('/validate', async (req, res) => {
               // Continuar aunque falle el reenvío
             }
             
-            // 4. Crear regalía pendiente
+            // 4. Crear regalía pendiente (SIEMPRE después de enviar el video)
             if (ip.uploader) {
-              const { createPendingRoyalty } = await import('../services/royaltyService');
-              
-              // Extraer uploaderTelegramId del formato "TelegramUser_123456"
-              const uploaderMatch = ip.uploader.match(/TelegramUser_(\d+)/);
-              const uploaderTelegramId = uploaderMatch ? parseInt(uploaderMatch[1]) : 0;
-              
-              // Usar uploaderName del registry si está disponible
-              const uploaderName = ip.uploaderName;
-              
-              const royalty = await createPendingRoyalty(
-                telegramUserId,
-                ipId,
-                ip.title,
-                '0.1', // Monto fijo de regalía (0.1 IP)
-                uploaderTelegramId,
-                uploaderName, // Usar nombre del registry
-                ip.tokenId,
-                ip.channelMessageId,
-                ip.videoFileId
-              );
-              
-              royaltyId = royalty.id;
-              royaltyCreated = true;
-              console.log(`✅ Regalía pendiente creada: ${royaltyId} para usuario ${telegramUserId}`);
-              console.log(`💡 El usuario debe pagar la regalía desde la mini-app para poder reenviar el video`);
+              try {
+                const { createPendingRoyalty } = await import('../services/royaltyService');
+                
+                // Extraer uploaderTelegramId del formato "TelegramUser_123456"
+                const uploaderMatch = ip.uploader.match(/TelegramUser_(\d+)/);
+                const uploaderTelegramId = uploaderMatch ? parseInt(uploaderMatch[1]) : 0;
+                
+                if (!uploaderTelegramId) {
+                  console.warn(`⚠️  No se pudo extraer uploaderTelegramId de: ${ip.uploader}`);
+                }
+                
+                // Usar uploaderName del registry si está disponible
+                const uploaderName = ip.uploaderName;
+                
+                console.log(`💰 Creando regalía pendiente de 0.1 IP para usuario ${telegramUserId}`);
+                console.log(`   - IP: ${ipId} (${ip.title})`);
+                console.log(`   - Uploader: ${uploaderTelegramId} (${uploaderName || 'Sin nombre'})`);
+                console.log(`   - VideoFileId: ${ip.videoFileId || 'N/A'}`);
+                console.log(`   - ChannelMessageId: ${ip.channelMessageId || 'N/A'}`);
+                
+                const royalty = await createPendingRoyalty(
+                  telegramUserId,
+                  ipId,
+                  ip.title || 'Video sin título',
+                  '0.1', // Monto fijo de regalía (0.1 IP)
+                  uploaderTelegramId,
+                  uploaderName, // Usar nombre del registry
+                  ip.tokenId,
+                  ip.channelMessageId,
+                  ip.videoFileId
+                );
+                
+                royaltyId = royalty.id;
+                royaltyCreated = true;
+                console.log(`✅ Regalía pendiente creada exitosamente: ${royaltyId} para usuario ${telegramUserId}`);
+                console.log(`💡 El usuario debe pagar la regalía de 0.1 IP desde la mini-app para poder reenviar el video`);
+              } catch (royaltyError: any) {
+                console.error(`❌ Error creando regalía pendiente:`, royaltyError);
+                console.error(`   Detalles:`, {
+                  telegramUserId,
+                  ipId,
+                  uploader: ip.uploader,
+                  error: royaltyError.message,
+                });
+                // No fallar el puzzle si falla la creación de regalía, pero loguear el error
+              }
+            } else {
+              console.warn(`⚠️  No se puede crear regalía: IP ${ipId} no tiene uploader`);
             }
           } else {
-            console.warn(`⚠️  No se encontró IP ${ipId} en el registry o no tiene videoFileId/channelMessageId`);
+            console.warn(`⚠️  No se puede enviar video: IP ${ipId} no tiene videoFileId ni channelMessageId`);
             console.warn(`   IP encontrado:`, ip ? {
+              ipId: ip.ipId,
+              title: ip.title,
               hasVideoFileId: !!ip.videoFileId,
               hasChannelMessageId: !!ip.channelMessageId,
-              title: ip.title,
+              uploader: ip.uploader,
             } : 'null');
+            console.warn(`   💡 Asegúrate de que el video fue reenviado al canal después del registro del IP`);
           }
         } catch (error: any) {
-          console.error('Error en nueva lógica de puzzle:', error);
-          // No fallar el puzzle si hay error en el reenvío
+          console.error('❌ Error en lógica de puzzle (envío de video y regalía):', error);
+          console.error('   Detalles:', {
+            ipId,
+            telegramUserId,
+            errorMessage: error.message,
+            stack: error.stack,
+          });
+          // No fallar el puzzle si hay error en el reenvío, pero loguear el error
         }
+      } else {
+        console.warn(`⚠️  No se puede procesar puzzle: falta ipId (${ipId}) o telegramUserId (${telegramUserId})`);
       }
       
       // CRÍTICO: Obtener tokenId y contractAddress del derivado para construir URL correcta

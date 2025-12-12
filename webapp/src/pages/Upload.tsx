@@ -211,19 +211,17 @@ function Upload() {
             const licenseResponse = await axios.post(`${API_URL}/story/register-license`, {
               ipId: storyResponse.data.ipId, // IP ID requerido
               licenseTerms: {
-                // CRÍTICO: commercialUse debe ser false cuando no hay currency token
-                // para evitar el error "Royalty policy requires currency token"
-                commercialUse: false, // false porque no hay currency token configurado
-                commercialRevShare: 0, // 0% hasta configurar currency token (wrapped IP)
-                commercialAttribution: true,
-                derivativesAllowed: true,
-                derivativesAttribution: true,
+                // CRÍTICO: IPs comercializables por defecto
+                // El backend usará MockERC20 como currency token si no se proporciona uno
+                commercialUse: true, // true para permitir uso comercial
+                commercialRevShare: 0, // 0% de regalías comerciales inicialmente (puede cambiarse después)
+                commercialAttribution: true, // Requiere atribución en uso comercial
+                derivativesAllowed: true, // Permitir derivados
+                derivativesAttribution: true, // Requiere atribución en derivados
+                transferable: true, // Licencias transferibles
                 mintingFee: '0', // Sin fee inicial para facilitar acceso
-                // TODO: Configurar wrapped IP token address aquí para habilitar regalías
-                // Cuando tengas wrapped IP token, puedes establecer:
-                // commercialUse: true,
-                // commercialRevShare: 10, // 10% de regalías
-                // currency: '0x...', // Address del wrapped IP token en Aeneid testnet
+                // El backend usará MockERC20 token address como currency por defecto
+                // currency: se establecerá automáticamente en el backend usando MockERC20
               },
             });
             if (licenseResponse.data.success) {
