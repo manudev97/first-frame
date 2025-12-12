@@ -153,18 +153,32 @@ export async function saveRegisteredIP(ip: RegisteredIP): Promise<void> {
     }
     
     // CRÍTICO: Escribir de forma atómica para evitar corrupción del archivo
-    // 1. Crear archivo temporal
+    // 1. Asegurar que el directorio existe ANTES de cualquier operación de escritura
+    await ensureDataDir();
+    
+    // 2. Verificar que el directorio existe (con reintento si es necesario)
+    const dataDir = path.dirname(REGISTRY_FILE);
+    try {
+      await fs.access(dataDir);
+    } catch {
+      // Si no existe, crearlo con recursive: true
+      await fs.mkdir(dataDir, { recursive: true });
+      // Verificar nuevamente que se creó correctamente
+      await fs.access(dataDir);
+    }
+    
+    // 3. Crear archivo temporal
     const tempFile = REGISTRY_FILE + '.tmp';
     const jsonContent = JSON.stringify(ips, null, 2);
     
-    // 2. Validar que el JSON es válido antes de escribir
+    // 4. Validar que el JSON es válido antes de escribir
     try {
       JSON.parse(jsonContent);
     } catch (validationError) {
       throw new Error('JSON generado es inválido - no se puede guardar');
     }
     
-    // 3. Crear backup antes de escribir
+    // 5. Crear backup antes de escribir
     try {
       const currentContent = await fs.readFile(REGISTRY_FILE, 'utf-8').catch(() => '[]');
       if (currentContent && currentContent.trim() !== '') {
@@ -176,13 +190,10 @@ export async function saveRegisteredIP(ip: RegisteredIP): Promise<void> {
       console.warn('⚠️  No se pudo crear backup:', backupError);
     }
     
-    // 4. Asegurar que el directorio existe antes de escribir (por si acaso)
-    await ensureDataDir();
-    
-    // 5. Escribir al archivo temporal primero
+    // 6. Escribir al archivo temporal primero
     await fs.writeFile(tempFile, jsonContent, 'utf-8');
     
-    // 6. Reemplazar el archivo original con el temporal (operación atómica)
+    // 7. Reemplazar el archivo original con el temporal (operación atómica)
     await fs.rename(tempFile, REGISTRY_FILE);
     
     console.log(`✅ IP guardado en marketplace: ${ip.ipId}${ip.tokenId ? ` (Token ID: ${ip.tokenId})` : ''} - ${ip.title} (uploader: ${ip.uploader || 'N/A'})`);
