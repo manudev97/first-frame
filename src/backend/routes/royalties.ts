@@ -8,6 +8,7 @@ import {
   loadPendingRoyalties,
 } from '../services/royaltyService';
 import { getStoryBalance } from '../services/balanceService';
+import type { RegisteredIP } from '../services/ipRegistry';
 import axios from 'axios';
 import dotenv from 'dotenv';
 
@@ -219,7 +220,8 @@ router.post('/verify-payment', async (req, res) => {
           // Fallback: Construir caption desde el IP si no hay caption original
           console.warn(`⚠️  No hay caption original guardado en la regalía, construyendo desde el IP`);
           const { getIPById, getIPByTokenId } = await import('../services/ipRegistry');
-          let ip = null;
+          type RegisteredIP = Awaited<ReturnType<typeof getIPById>> extends infer T ? (T extends null ? never : T) : never;
+          let ip: Awaited<ReturnType<typeof getIPById>> = null;
           
           // PRIORIDAD: Buscar por tokenId si está disponible
           if (royalty.tokenId) {
