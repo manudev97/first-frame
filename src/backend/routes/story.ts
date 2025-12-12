@@ -7,6 +7,20 @@ import { saveRegisteredIP } from '../services/ipRegistry';
 import { getIPDetailsFromTransaction } from '../services/txParser';
 import { getStoryBalance, hasSufficientBalance } from '../services/balanceService';
 
+// Helper para convertir BigInt a string de forma segura
+function bigIntToString(value: any): string {
+  if (typeof value === 'bigint') {
+    return value.toString();
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    return value.toString();
+  }
+  return String(value || '');
+}
+
 const router = Router();
 
 // Registrar IP Asset
@@ -193,9 +207,12 @@ router.post('/register-ip', async (req, res) => {
               });
             }
 
+            // CRÍTICO: Convertir BigInt a string para serialización JSON
+            const txHash = bigIntToString(tx.txHash);
+            
             res.json({ 
               success: true, 
-              txHash: tx.txHash, 
+              txHash: txHash, 
               ipId: correctIpId, // Usar el IP ID correcto (validado)
               tokenId: tokenId ? tokenId.toString() : null, // Incluir token ID si está disponible
             });
@@ -275,10 +292,14 @@ router.post('/register-derivative', async (req, res) => {
     // TODO: Después de registrar, necesitamos hacer attach como derivado
     // Esto requiere una llamada adicional al SDK
 
+    // CRÍTICO: Convertir BigInt a string para serialización JSON
+    const txHash = bigIntToString(tx.txHash);
+    const ipId = bigIntToString(tx.ipId);
+    
     res.json({ 
       success: true, 
-      txHash: tx.txHash, 
-      ipId: tx.ipId,
+      txHash: txHash, 
+      ipId: ipId,
       tokenId: tokenId ? tokenId.toString() : null, // CRÍTICO: Token ID para construir URL
       contractAddress: process.env.STORY_SPG_NFT_CONTRACT || null, // CRÍTICO: Contract address para construir URL
     });
@@ -382,7 +403,15 @@ router.post('/register-license', async (req, res) => {
         uri: '', // URI opcional para términos de licencia
       });
       
-      res.json({ success: true, txHash: tx.txHash, licenseTermsId: tx.licenseTermsId });
+      // CRÍTICO: Convertir BigInt a string para serialización JSON
+      const txHash = bigIntToString(tx.txHash);
+      const licenseTermsId = bigIntToString(tx.licenseTermsId);
+      
+      res.json({ 
+        success: true, 
+        txHash: txHash, 
+        licenseTermsId: licenseTermsId 
+      });
     } catch (sdkError: any) {
       // Si el SDK sigue lanzando el error incluso con valores correctos,
       // puede ser un bug del SDK o una validación adicional que no conocemos

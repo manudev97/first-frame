@@ -77,6 +77,31 @@ export async function createPendingRoyalty(
 ): Promise<PendingRoyalty> {
   const royalties = await loadPendingRoyalties();
   
+  // CRÍTICO: Verificar si ya existe una regalía pendiente para este usuario e IP
+  const existingRoyalty = royalties.find(
+    (r) => r.telegramUserId === telegramUserId && 
+           r.ipId.toLowerCase() === ipId.toLowerCase() && 
+           !r.paid
+  );
+  
+  if (existingRoyalty) {
+    console.warn(`⚠️  Regalía pendiente ya existe para usuario ${telegramUserId} e IP ${ipId}. Retornando existente.`);
+    console.warn(`   - Regalía ID: ${existingRoyalty.id}`);
+    console.warn(`   - Creada: ${existingRoyalty.createdAt}`);
+    // Actualizar videoFileId y channelMessageId si no estaban guardados
+    if (!existingRoyalty.videoFileId && videoFileId) {
+      existingRoyalty.videoFileId = videoFileId;
+      await savePendingRoyalties(royalties);
+      console.log(`✅ VideoFileId actualizado en regalía existente`);
+    }
+    if (!existingRoyalty.channelMessageId && channelMessageId) {
+      existingRoyalty.channelMessageId = channelMessageId;
+      await savePendingRoyalties(royalties);
+      console.log(`✅ ChannelMessageId actualizado en regalía existente`);
+    }
+    return existingRoyalty;
+  }
+  
   const royalty: PendingRoyalty = {
     id: crypto.randomUUID(),
     telegramUserId,
