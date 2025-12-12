@@ -658,15 +658,16 @@ router.post('/validate', async (req, res) => {
               console.error(`   💡 El IP debe tener un uploader para poder crear regalías. Verifica que el IP se registró correctamente con el uploader.`);
             }
           } else {
-            console.warn(`⚠️  No se puede enviar video: IP ${ipId} no tiene videoFileId ni channelMessageId`);
+            console.warn(`⚠️  No se puede enviar video: IP ${finalIpId} (Token ID: ${ip?.tokenId || tokenId || 'N/A'}, Título: ${ip?.title || requestTitle || 'N/A'}) no tiene videoFileId ni channelMessageId`);
             console.warn(`   IP encontrado:`, ip ? {
               ipId: ip.ipId,
+              tokenId: ip.tokenId || 'N/A',
               title: ip.title,
               hasVideoFileId: !!ip.videoFileId,
               hasChannelMessageId: !!ip.channelMessageId,
               uploader: ip.uploader,
             } : 'null');
-            console.warn(`   💡 Asegúrate de que el video fue reenviado al canal después del registro del IP`);
+            console.warn(`   💡 El video debe estar guardado en el registry cuando se sube al canal. TokenId buscado: ${tokenId || 'N/A'}, Título buscado: ${requestTitle || 'N/A'}`);
           }
         } catch (error: any) {
           console.error('❌ Error en lógica de puzzle (envío de video y regalía):', error);

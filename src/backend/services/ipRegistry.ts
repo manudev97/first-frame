@@ -155,7 +155,14 @@ export async function saveRegisteredIP(ip: RegisteredIP): Promise<void> {
     const tempFile = REGISTRY_FILE + '.tmp';
     const jsonContent = JSON.stringify(ips, null, 2);
     
-    // 2. Crear backup antes de escribir
+    // 2. Validar que el JSON es válido antes de escribir
+    try {
+      JSON.parse(jsonContent);
+    } catch (validationError) {
+      throw new Error('JSON generado es inválido - no se puede guardar');
+    }
+    
+    // 3. Crear backup antes de escribir
     try {
       const currentContent = await fs.readFile(REGISTRY_FILE, 'utf-8').catch(() => '[]');
       if (currentContent && currentContent.trim() !== '') {
@@ -167,18 +174,8 @@ export async function saveRegisteredIP(ip: RegisteredIP): Promise<void> {
       console.warn('⚠️  No se pudo crear backup:', backupError);
     }
     
-    // 3. Escribir al archivo temporal primero
+    // 4. Escribir al archivo temporal primero
     await fs.writeFile(tempFile, jsonContent, 'utf-8');
-    
-    // 4. Validar que el archivo temporal es JSON válido
-    try {
-      const validationContent = await fs.readFile(tempFile, 'utf-8');
-      JSON.parse(validationContent);
-    } catch (validationError) {
-      // Si el archivo temporal es inválido, no reemplazar el original
-      await fs.unlink(tempFile).catch(() => {});
-      throw new Error('JSON generado es inválido');
-    }
     
     // 5. Reemplazar el archivo original con el temporal (operación atómica)
     await fs.rename(tempFile, REGISTRY_FILE);
@@ -190,8 +187,7 @@ export async function saveRegisteredIP(ip: RegisteredIP): Promise<void> {
     try {
       await fs.unlink(REGISTRY_FILE + '.tmp').catch(() => {});
     } catch {}
-    // No lanzar error - el registro puede continuar aunque falle el guardado
-    throw error; // Pero lanzar para que el backend sepa que falló
+    throw error;
   }
 }
 
