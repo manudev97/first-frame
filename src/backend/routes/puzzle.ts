@@ -447,7 +447,6 @@ router.post('/validate', async (req, res) => {
             // CRÍTICO: Verificar que el video NO se haya enviado ya (prevenir duplicados)
             if (!videoForwarded) {
               try {
-                
                 // CRÍTICO: Usar sendVideo con protect_content: true para enviar UNA SOLA VEZ sin opción de reenvío
                 // Priorizar videoFileId si está disponible, sino intentar obtenerlo del canal
                 if (ip.videoFileId) {
@@ -473,26 +472,29 @@ router.post('/validate', async (req, res) => {
                   console.log(`✅ Video enviado exitosamente UNA VEZ con protect_content: true`);
                   console.log(`   - videoForwarded después: ${videoForwarded} (marcado como enviado)`);
                 } else if (ip.channelMessageId) {
-                // PRIORIDAD 2: Si solo tenemos channelMessageId, intentar obtener videoFileId del canal
-                // NOTA: Telegram Bot API no permite obtener mensajes de canales directamente
-                // Por lo tanto, debemos confiar en que el videoFileId esté guardado en el registry
-                console.error(`❌ ERROR: IP tiene channelMessageId pero NO tiene videoFileId`);
-                console.error(`   - Channel Message ID: ${ip.channelMessageId}`);
-                console.error(`   - IP: ${ip.title} (Token ID: ${ip.tokenId || 'N/A'})`);
-                console.error(`   💡 El videoFileId debe estar guardado en el registry cuando se sube el video al canal.`);
-                console.error(`   💡 Verifica que el endpoint /upload/forward-to-channel guarde correctamente el videoFileId.`);
-                throw new Error('VideoFileId no disponible. El video debe estar guardado en el registry con videoFileId.');
-              } else {
-                console.warn(`⚠️  No se puede enviar video: IP ${finalIpId} no tiene videoFileId ni channelMessageId`);
+                  // PRIORIDAD 2: Si solo tenemos channelMessageId, intentar obtener videoFileId del canal
+                  // NOTA: Telegram Bot API no permite obtener mensajes de canales directamente
+                  // Por lo tanto, debemos confiar en que el videoFileId esté guardado en el registry
+                  console.error(`❌ ERROR: IP tiene channelMessageId pero NO tiene videoFileId`);
+                  console.error(`   - Channel Message ID: ${ip.channelMessageId}`);
+                  console.error(`   - IP: ${ip.title} (Token ID: ${ip.tokenId || 'N/A'})`);
+                  console.error(`   💡 El videoFileId debe estar guardado en el registry cuando se sube el video al canal.`);
+                  console.error(`   💡 Verifica que el endpoint /upload/forward-to-channel guarde correctamente el videoFileId.`);
+                  throw new Error('VideoFileId no disponible. El video debe estar guardado en el registry con videoFileId.');
+                } else {
+                  console.warn(`⚠️  No se puede enviar video: IP ${finalIpId} no tiene videoFileId ni channelMessageId`);
+                }
+              } catch (forwardError: any) {
+                console.error(`❌ Error reenviando video al usuario ${telegramUserId}:`, forwardError);
+                console.error(`   Detalles:`, {
+                  hasVideoFileId: !!ip.videoFileId,
+                  hasChannelMessageId: !!ip.channelMessageId,
+                  errorMessage: forwardError.message,
+                });
+                // Continuar aunque falle el reenvío
               }
-            } catch (forwardError: any) {
-              console.error(`❌ Error reenviando video al usuario ${telegramUserId}:`, forwardError);
-              console.error(`   Detalles:`, {
-                hasVideoFileId: !!ip.videoFileId,
-                hasChannelMessageId: !!ip.channelMessageId,
-                errorMessage: forwardError.message,
-              });
-              // Continuar aunque falle el reenvío
+            } else {
+              console.warn(`⚠️  Video ya fue enviado (videoForwarded=${videoForwarded}), evitando envío duplicado`);
             }
             
             // 4. Crear regalía pendiente (SIEMPRE después de enviar el video)
