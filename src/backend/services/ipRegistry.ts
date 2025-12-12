@@ -59,13 +59,14 @@ export async function saveRegisteredIP(ip: RegisteredIP): Promise<void> {
     
     if (ip.tokenId) {
       // PRIORIDAD 1: Buscar por tokenId (clave única)
+      const ipTokenId = ip.tokenId; // Guardar en variable para evitar errores de TypeScript
       existingIndex = ips.findIndex((existing) => 
-        existing.tokenId === ip.tokenId || 
-        existing.tokenId === ip.tokenId.toString() ||
-        (existing.tokenId && existing.tokenId.toString() === ip.tokenId.toString())
+        existing.tokenId === ipTokenId || 
+        existing.tokenId === ipTokenId.toString() ||
+        (existing.tokenId && existing.tokenId.toString() === ipTokenId.toString())
       );
       if (existingIndex !== -1) {
-        console.log(`✅ IP encontrado por tokenId ${ip.tokenId}, actualizando...`);
+        console.log(`✅ IP encontrado por tokenId ${ipTokenId}, actualizando...`);
       }
     }
     
