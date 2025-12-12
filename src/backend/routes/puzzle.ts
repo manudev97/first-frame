@@ -144,6 +144,7 @@ router.post('/validate', async (req, res) => {
         }
       }
       
+      // CRÍTICO: SIEMPRE ejecutar lógica de envío del video si el puzzle es válido
       // NUEVA LÓGICA: Buscar video en el canal y reenviarlo al usuario
       let videoForwarded = false;
       let royaltyCreated = false;
@@ -152,18 +153,22 @@ router.post('/validate', async (req, res) => {
       console.log(`🔍 Iniciando lógica de puzzle para IP ${ipId} y usuario ${telegramUserId}`);
       console.log(`   - ipId recibido: ${ipId} (tipo: ${typeof ipId})`);
       console.log(`   - telegramUserId recibido: ${telegramUserId} (tipo: ${typeof telegramUserId})`);
+      console.log(`   - tokenId recibido: ${req.body.tokenId || 'N/A'} (tipo: ${typeof req.body.tokenId})`);
+      console.log(`   - title recibido: ${req.body.title || 'N/A'} (tipo: ${typeof req.body.title})`);
+      console.log(`   - Request body completo:`, JSON.stringify(req.body, null, 2));
       
-      if (!ipId) {
-        console.error(`❌ ERROR CRÍTICO: ipId no está presente en el request`);
+      // CRÍTICO: Verificar que ipId y telegramUserId estén presentes antes de continuar
+      if (!ipId || !telegramUserId) {
+        console.error(`❌ ERROR CRÍTICO: ipId o telegramUserId no están presentes en el request`);
+        console.error(`   - ipId: ${ipId || 'FALTANTE'}`);
+        console.error(`   - telegramUserId: ${telegramUserId || 'FALTANTE'}`);
         console.error(`   Request body:`, JSON.stringify(req.body, null, 2));
+        // Continuar de todas formas para intentar enviar el video si es posible
       }
       
-      if (!telegramUserId) {
-        console.error(`❌ ERROR CRÍTICO: telegramUserId no está presente en el request`);
-        console.error(`   Request body:`, JSON.stringify(req.body, null, 2));
-      }
-      
-      if (ipId && telegramUserId) {
+      // CRÍTICO: Ejecutar lógica de envío del video SIEMPRE que el puzzle sea válido
+      // No requiere que ipId y telegramUserId estén presentes (pueden ser undefined)
+      try {
         try {
           // 1. Obtener información del IP del registry
           // CRÍTICO: PRIORIZAR búsqueda por tokenId si está disponible (más preciso que ipId)
