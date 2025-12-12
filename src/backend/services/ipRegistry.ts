@@ -24,6 +24,7 @@ const REGISTRY_FILE = path.join(process.cwd(), 'data', 'ip-registry.json');
 
 // Lock para evitar escrituras concurrentes
 let writeLock: Promise<void> = Promise.resolve();
+let isWriting = false;
 
 // Asegurar que el directorio existe
 async function ensureDataDir() {
@@ -96,7 +97,12 @@ export async function loadRegisteredIPs(): Promise<RegisteredIP[]> {
 // Guardar IP registrado
 export async function saveRegisteredIP(ip: RegisteredIP): Promise<void> {
   // CRÍTICO: Esperar a que cualquier escritura anterior termine (lock)
-  await writeLock;
+  while (isWriting) {
+    await writeLock;
+  }
+  
+  // Marcar que estamos escribiendo
+  isWriting = true;
   
   // Crear una nueva promesa de lock para esta escritura
   let resolveLock: () => void;
@@ -207,22 +213,37 @@ export async function saveRegisteredIP(ip: RegisteredIP): Promise<void> {
     // 6. Asegurar que el directorio existe una vez más antes de escribir (por si acaso)
     await ensureDataDir();
     
-    // 7. Escribir al archivo temporal primero
+    // 7. Verificar que el directorio existe antes de escribir el archivo temporal
+    const dataDir = path.dirname(REGISTRY_FILE);
+    try {
+      await fs.access(dataDir);
+    } catch {
+      // Si no existe, crearlo con recursive: true
+      await fs.mkdir(dataDir, { recursive: true });
+      // Verificar nuevamente que se creó correctamente
+      await fs.access(dataDir);
+    }
+    
+    // 8. Escribir al archivo temporal primero
     await fs.writeFile(tempFile, jsonContent, 'utf-8');
     
-    // 8. Verificar que el archivo temporal se escribió correctamente
+    // 9. Verificar que el archivo temporal se escribió correctamente
     try {
       await fs.access(tempFile);
     } catch {
       throw new Error('No se pudo escribir el archivo temporal');
     }
     
-    // 9. Reemplazar el archivo original con el temporal (operación atómica)
+    // 10. Asegurar que el directorio existe antes de renombrar
+    await ensureDataDir();
+    
+    // 11. Reemplazar el archivo original con el temporal (operación atómica)
     await fs.rename(tempFile, REGISTRY_FILE);
     
     console.log(`✅ IP guardado en marketplace: ${ip.ipId}${ip.tokenId ? ` (Token ID: ${ip.tokenId})` : ''} - ${ip.title} (uploader: ${ip.uploader || 'N/A'})`);
     
     // CRÍTICO: Liberar el lock después de escribir exitosamente
+    isWriting = false;
     resolveLock!();
   } catch (error) {
     console.error('❌ Error guardando IP registrado:', error);
@@ -231,6 +252,7 @@ export async function saveRegisteredIP(ip: RegisteredIP): Promise<void> {
       await fs.unlink(REGISTRY_FILE + '.tmp').catch(() => {});
     } catch {}
     // CRÍTICO: Liberar el lock incluso si hay error
+    isWriting = false;
     resolveLock!();
     throw error;
   }

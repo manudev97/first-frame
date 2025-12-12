@@ -325,7 +325,7 @@ function Puzzle() {
             <div className="solved-animation">🎉</div>
             <h3>¡Felicidades!</h3>
             <p className="solved-time">Completado en {formatTime(time)}</p>
-            <p className="solved-message">Tu acceso al canal privado ha sido otorgado</p>
+            <p className="solved-message">El video ha sido enviado a tu chat privado de Telegram</p>
             {derivativeIpId && (
               <div style={{ 
                 marginTop: '20px', 
