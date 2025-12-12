@@ -207,7 +207,10 @@ router.post('/verify-payment', async (req, res) => {
           await bot.telegram.sendVideo(
             royalty.telegramUserId,
             royalty.videoFileId,
-            { caption: fullCaption }
+            { 
+              caption: fullCaption,
+              // CRÍTICO: NO usar protect_content aquí - el usuario ya pagó, puede reenviar
+            }
           );
           videoReSent = true;
           console.log(`✅ Video reenviado sin protección al usuario ${royalty.telegramUserId} después de verificar pago`);
